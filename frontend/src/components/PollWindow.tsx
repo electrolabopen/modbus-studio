@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { api } from '../api/client'
+import { COLORS, MAX_SERIES, sameSeries } from '../chart'
 import {
   BYTE_ORDERS,
   DATA_TYPES,
@@ -57,6 +58,9 @@ export function PollWindow({ view }: { view: PollView }) {
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const csvInput = useRef<HTMLInputElement>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const plotted = useStudio((s) => s.plotted)
+  const plot = useStudio((s) => s.plot)
+  const unplot = useStudio((s) => s.unplot)
 
   const stats = latest?.stats ?? view.stats
   const isBit = def.function <= 2
@@ -72,6 +76,32 @@ export function PollWindow({ view }: { view: PollView }) {
       cells,
       ownerOf(cells, Math.max(selection.anchor, selection.focus)),
     ),
+  }
+
+  // One series per value: the first register of a 32/64-bit value stands for it.
+  const toPlot = selected
+    ? cells
+        .filter((c) => c.covered_by === null && c.address >= selected.start && c.address <= selected.end)
+        .map((c) => ({ poll: def.id, address: c.address }))
+    : []
+  const allPlotted =
+    toPlot.length > 0 && toPlot.every((k) => plotted.some((p) => sameSeries(p, k)))
+  const colorOf = (address: number) => {
+    const i = plotted.findIndex((p) => p.poll === def.id && p.address === address)
+    return i < 0 ? null : COLORS[i % COLORS.length]
+  }
+
+  const togglePlot = () => {
+    setActionError(null)
+    if (allPlotted) {
+      unplot(toPlot)
+      return
+    }
+    const left = plot(toPlot)
+    if (left > 0)
+      setActionError(
+        `The chart holds ${MAX_SERIES} values; ${left} of the selected were not added.`,
+      )
   }
 
   const run = async (action: () => Promise<PollView | void>) => {
@@ -172,6 +202,21 @@ export function PollWindow({ view }: { view: PollView }) {
           )}
           <button
             className="btn btn-small"
+            disabled={toPlot.length === 0}
+            aria-pressed={allPlotted}
+            title={
+              toPlot.length === 0
+                ? 'Select rows to chart them'
+                : allPlotted
+                  ? 'Take the selected values off the chart'
+                  : 'Add the selected values to the chart'
+            }
+            onClick={togglePlot}
+          >
+            {allPlotted ? 'Unplot' : 'Plot'}
+          </button>
+          <button
+            className="btn btn-small"
             title="Import a CSV register map (address, alias, type, byte_order, scale, unit)"
             onClick={() => csvInput.current?.click()}
           >
@@ -231,6 +276,7 @@ export function PollWindow({ view }: { view: PollView }) {
                 isSelected && 'selected',
               ]
               const alias = c.covered_by === null ? (def.formats[c.address]?.alias ?? c.alias) : ''
+              const color = colorOf(c.address)
               return (
                 <tr
                   key={c.address}
@@ -240,6 +286,14 @@ export function PollWindow({ view }: { view: PollView }) {
                 >
                   <td className="addr" onDoubleClick={() => openFormat(c.address)}>
                     {c.address}
+                    {color && (
+                      <span
+                        className="plot-dot"
+                        style={{ background: color }}
+                        title="On the chart"
+                        data-testid={`plotted-${c.address}`}
+                      />
+                    )}
                   </td>
                   <td
                     className="alias"

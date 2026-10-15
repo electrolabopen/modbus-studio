@@ -689,3 +689,122 @@ select:focus,
 .paused-note {
   color: var(--warning);
 }
+
+/* -- chart ---------------------------------------------------------------- */
+
+.chart {
+  display: flex;
+  flex-direction: column;
+  height: 45%;
+  min-height: 220px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.chart-empty {
+  padding: 16px 12px;
+  font-size: 13px;
+}
+
+.chart-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.chart-legend {
+  width: 260px;
+  margin: 0;
+  padding: 6px 8px;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  font-size: 12px;
+  list-style: none;
+}
+
+.chart-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.chart-series {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.chart-legend .swatch {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.chart-legend li.off .swatch {
+  opacity: 0.3;
+}
+
+.chart-legend li.off .label {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.chart-legend .label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-legend .value {
+  white-space: nowrap;
+}
+
+/* uPlot sizes itself from this box, so it must not have padding. */
+.chart-plot {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.chart-plot .uplot {
+  font-family: var(--font-ui);
+}
+
+.chart-plot .u-select {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.plot-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+@media (max-width: 720px) {
+  .chart-body {
+    flex-direction: column;
+  }
+
+  .chart-legend {
+    width: auto;
+    max-height: 35%;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}

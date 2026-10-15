@@ -11,7 +11,7 @@ default and has an optional bearer token.
 | **2. API + WebSocket** | REST CRUD for connections and windows; write endpoints; a WebSocket carrying values, status and traffic; error counters | Complete OpenAPI; a test client receives live values | ✅ |
 | **3. Basic UI** | Dark theme, several polling windows, connection dialog, table with a format per cell or range | Three windows at different scan rates against the simulator | 🟡 minimal version: TCP / RTU-over-TCP connections, windows, live table, Tx/Err, format per window |
 | **4. Writes, aliases, workspaces, register maps** | Double-click → FC05/06/15/16, aliases, JSON workspaces, **CSV register map import** (address, alias, data type, byte order, scale, unit), writes in engineering units | Write from the UI and see it on the next poll; import a CSV and get the same table as configuring it by hand | ✅ |
-| **5. Traffic monitor + chart** | TX/RX hex panel with filter, pause and export; uPlot chart of selected registers | Frames visible live; the simulator sine wave plotted | |
+| **5. Traffic monitor + chart** | TX/RX hex panel with filter, pause and export; uPlot chart of selected registers | Frames visible live; the simulator sine wave plotted | ✅ |
 | **6. RTU on real hardware** | Serial port discovery, `docs/rtu-linux.md` (dialout, udev, `/dev/serial/by-id`, RS-485 adapters, Docker `--device`) | Tested with socat ptys in CI and with a real USB-RS485 adapter | |
 | **7. Integrations** | InfluxDB and MQTT exporters with configurable mapping, optional compose profiles for InfluxDB and Mosquitto | Data in InfluxDB/Grafana and in `mosquitto_sub` | |
 | **8. Release 0.1** | README with screenshots and a GIF, docs, PyPI package, **multi-arch image `linux/amd64` + `linux/arm64` on GHCR (`ghcr.io/electrolabopen/modbus-studio`)** | `pip install modbus-studio` works on Linux, Windows and macOS; `docker run` works on x86 and on a Raspberry Pi 4/5 (64-bit OS) | |
@@ -37,5 +37,8 @@ address,alias,type,byte_order,scale,unit
 - Writes in engineering units divide by the scale and round to the nearest raw integer
   (`codec.from_engineering`). The UI must show the raw value that will actually be
   written.
+- The chart history lives in the browser (up to an hour per series) and starts when a
+  value is plotted; a reload starts it empty. Server-side history, if needed, belongs
+  with the InfluxDB exporter in phase 7.
 - `stop_all()` can cancel a request that is in flight. On TCP the transaction ID
   discards a late reply. RTU needs verification on real hardware in phase 6.

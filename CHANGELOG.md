@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Added
+- Real-time chart (**Chart** in the toolbar, uPlot): select rows in a window and press
+  **Plot** (or **Unplot**); a 32/64-bit value is one series, coils and discrete inputs
+  are drawn as steps, failed reads leave a gap. Up to 8 series, marked with their color
+  in the windows. Legend with the latest value (or the value under the cursor) and unit;
+  click a series to hide it, ✕ to remove it. Time span 30 s to 1 h; pause, drag to
+  zoom (pauses), double-click to reset; CSV export of what is shown; clear. Samples are
+  kept in the browser for up to an hour per series and start recording when a value is
+  plotted; the plotted values are remembered per browser.
 - Traffic monitor (**Traffic** in the toolbar): live TX/RX frames with time, connection,
   device, function, response time and a description of exception responses and
   malformed frames (bad RTU CRC, wrong MBAP length, short frames). Filters by

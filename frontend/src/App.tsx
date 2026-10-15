@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, getHealth, getToken, setToken, type Health } from './api/client'
 import { connectSocket } from './api/socket'
+import { ChartPanel } from './components/ChartPanel'
 import { ConnectionDialog } from './components/ConnectionDialog'
 import { ImportWorkspaceDialog } from './components/ImportWorkspaceDialog'
 import { Field, Modal } from './components/Modal'
@@ -65,6 +66,7 @@ export default function App() {
         <Sidebar />
         <div className="content">
           <Workspace />
+          {panel === 'chart' && <ChartPanel onClose={() => setPanel(null)} />}
           {panel === 'traffic' && <TrafficPanel onClose={() => setPanel(null)} />}
           {panel === 'writes' && <WriteLogPanel onClose={() => setPanel(null)} />}
         </div>
@@ -82,7 +84,7 @@ export default function App() {
   )
 }
 
-type Panel = 'traffic' | 'writes'
+type Panel = 'chart' | 'traffic' | 'writes'
 
 interface ToolbarProps {
   enabled: boolean
@@ -141,6 +143,14 @@ function Toolbar({ enabled, panel, onTogglePanel }: ToolbarProps) {
           e.target.value = ''
         }}
       />
+      <button
+        className="btn"
+        aria-pressed={panel === 'chart'}
+        disabled={!enabled}
+        onClick={() => onTogglePanel('chart')}
+      >
+        Chart
+      </button>
       <button
         className="btn"
         aria-pressed={panel === 'traffic'}
