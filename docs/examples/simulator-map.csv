@@ -1,0 +1,13 @@
+# Register map of modbus-studio-sim (device 1 or 2).
+# Import it into an FC03 or FC04 window at address 0 with quantity 28.
+address,alias,type,byte_order,scale,unit
+0,counter,uint16,ABCD,1,
+1,sawtooth,uint16,ABCD,1,
+2,temperature,int16,ABCD,0.1,°C
+10,sine ABCD,float32,ABCD,1,
+12,sine CDAB,float32,CDAB,1,
+14,sine BADC,float32,BADC,1,
+16,sine DCBA,float32,DCBA,1,
+20,sine float64,float64,ABCD,1,
+24,int32 constant,int32,ABCD,1,
+26,uint32 constant,uint32,CDAB,1,

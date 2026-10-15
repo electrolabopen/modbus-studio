@@ -5,10 +5,11 @@ The API layer only translates HTTP/WebSocket to calls on :class:`Studio`.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from ..models.connection import ConnectionConfig
+from ..models.format import RegisterFormatModel
 from ..models.poll import PollDefinition, ReadFunction
 from ..models.views import (
     Cell,
@@ -31,9 +32,17 @@ from .codec import (
     register_count,
     to_engineering,
 )
-from .connection import ClientFactory, Connection, ConnectionManager, default_client_factory
+from .connection import (
+    ClientFactory,
+    Connection,
+    ConnectionManager,
+    RequestError,
+    default_client_factory,
+)
 from .poller import PollManager, PollResult, PollTask
+from .registermap import MapError, RegisterMapError, parse_register_map
 from .traffic import TrafficEntry, TrafficLog
+from .writelog import WriteLog
 
 
 class StudioError(Exception):
@@ -62,9 +71,13 @@ _LIVE_CONNECTION_FIELDS = {"name", "read_only"}
 
 class Studio:
     def __init__(
-        self, traffic_buffer: int = 5000, client_factory: ClientFactory = default_client_factory
+        self,
+        traffic_buffer: int = 5000,
+        client_factory: ClientFactory = default_client_factory,
+        write_log: WriteLog | None = None,
     ) -> None:
         self.traffic = TrafficLog(maxlen=traffic_buffer)
+        self.write_log = write_log or WriteLog()
         self.connections = ConnectionManager(self.traffic, client_factory)
         self.polls = PollManager(self.connections)
         self._change_listeners: list[Callable[[], None]] = []
@@ -110,6 +123,29 @@ class Studio:
             self.add_connection(config)
         for definition in workspace.polls:
             self.add_poll(definition)
+
+    async def import_workspace(self, workspace: Workspace, replace: bool) -> None:
+        """Load a workspace file: replace the session, or add to it (merge).
+
+        The workspace is fully validated by its model before anything is touched.
+        """
+        if replace:
+            for conn in list(self.connections.all()):
+                await self.remove_connection(conn.id, cascade=True)
+        else:
+            taken = [c.id for c in workspace.connections if c.id in self._connection_ids()]
+            taken += [
+                p.id for p in workspace.polls if p.id in {t.definition.id for t in self.polls.all()}
+            ]
+            if taken:
+                raise ConflictError(
+                    f"already in use: {', '.join(sorted(taken))}; import with mode=replace "
+                    "or rename them in the file"
+                )
+        self.load_workspace(workspace)
+
+    def _connection_ids(self) -> set[str]:
+        return {c.id for c in self.connections.all()}
 
     def list_connections(self) -> list[ConnectionView]:
         return [self.connection_view(c.id) for c in self.connections.all()]
@@ -162,27 +198,48 @@ class Studio:
     async def write_raw(self, connection_id: str, req: RawWrite) -> None:
         conn = self._connection(connection_id)
         self._check_writable(conn)
+        dev, addr, values = req.device_id, req.address, req.values
+        send: Callable[[], Awaitable[None]]
         if req.function in (5, 15):
-            if any(v not in (0, 1) for v in req.values):
+            if any(v not in (0, 1) for v in values):
                 raise InvalidRequestError("coil values must be 0 or 1")
-            bits = [bool(v) for v in req.values]
+            bits = [bool(v) for v in values]
             if req.function == 5:
                 if len(bits) != 1:
                     raise InvalidRequestError("FC05 writes exactly one coil")
-                await conn.write_coil(req.device_id, req.address, bits[0])
+                send = lambda: conn.write_coil(dev, addr, bits[0])  # noqa: E731
             else:
-                await conn.write_coils(req.device_id, req.address, bits)
-            return
-        if any(not 0 <= v <= 0xFFFF for v in req.values):
-            raise InvalidRequestError("register values must be 0..65535")
-        if req.function == 6:
-            if len(req.values) != 1:
-                raise InvalidRequestError("FC06 writes exactly one register")
-            await conn.write_register(req.device_id, req.address, req.values[0])
+                send = lambda: conn.write_coils(dev, addr, bits)  # noqa: E731
         else:
-            if len(req.values) > 123:
-                raise InvalidRequestError("FC16 writes at most 123 registers")
-            await conn.write_registers(req.device_id, req.address, req.values)
+            if any(not 0 <= v <= 0xFFFF for v in values):
+                raise InvalidRequestError("register values must be 0..65535")
+            if req.function == 6:
+                if len(values) != 1:
+                    raise InvalidRequestError("FC06 writes exactly one register")
+                send = lambda: conn.write_register(dev, addr, values[0])  # noqa: E731
+            else:
+                if len(values) > 123:
+                    raise InvalidRequestError("FC16 writes at most 123 registers")
+                send = lambda: conn.write_registers(dev, addr, values)  # noqa: E731
+        await self._logged(
+            send,
+            connection_id=conn.id,
+            connection_name=conn.config.name,
+            device_id=dev,
+            function=req.function,
+            address=addr,
+            new=" ".join(str(v) for v in values),
+            values=values,
+        )
+
+    async def _logged(self, send: Callable[[], Awaitable[None]], **entry: Any) -> None:
+        """Send a write and record it, including when the device rejects it."""
+        try:
+            await send()
+        except RequestError as exc:
+            self.write_log.record(**entry, ok=False, error=str(exc))
+            raise
+        self.write_log.record(**entry, ok=True)
 
     # -- polling windows ---------------------------------------------------
 
@@ -285,6 +342,58 @@ class Studio:
         # Entries equal to the window default add nothing; keep the workspace tidy.
         formats = {a: f for a, f in formats.items() if f != d.default_format}
         return await self.update_poll(d.model_copy(update={"formats": formats}))
+
+    async def import_register_map(self, poll_id: str, text: str) -> PollView:
+        """Replace a window's per-cell formats with a CSV register map."""
+        d = self._task(poll_id).definition
+        rows = parse_register_map(text)
+        last = d.address + d.quantity - 1
+        errors: list[MapError] = []
+        for row in rows:
+            end = row.address if d.function.is_bit else row.last_address
+            if not d.address <= row.address <= end <= last:
+                span = f"{row.address}-{end}" if end != row.address else str(row.address)
+                message = f"address {span} is outside this window ({d.address}-{last})"
+                if row.address >= 30001:
+                    message += "; use 0-based protocol addresses, not 3xxxx/4xxxx numbers"
+                errors.append(MapError(row.line, message))
+            elif d.function.is_bit and (
+                row.dtype != d.default_format.dtype
+                or row.order != d.default_format.order
+                or row.scale != 1
+                or row.unit
+            ):
+                errors.append(MapError(row.line, "coils and discrete inputs only take an alias"))
+        if errors:
+            raise RegisterMapError(errors)
+
+        if d.function.is_bit:
+            formats = {r.address: RegisterFormatModel(alias=r.alias) for r in rows}
+        else:
+            formats = {
+                r.address: RegisterFormatModel(
+                    dtype=r.dtype, order=r.order, scale=r.scale, unit=r.unit, alias=r.alias
+                )
+                for r in rows
+            }
+        new = d.model_copy(update={"formats": formats})
+        # Addresses missing from the file use the window default, which may be wide
+        # enough to cover the next row of the file.
+        owners = self._cell_owners(new)
+        hidden = [
+            MapError(
+                r.line,
+                f"address {r.address} is covered by the window's default "
+                f"{d.default_format.dtype.value} at {owners[r.address]}; add a row for "
+                f"{owners[r.address]} or change the window format",
+            )
+            for r in rows
+            if owners.get(r.address, r.address) != r.address
+        ]
+        if hidden:
+            raise RegisterMapError(hidden)
+        tidy = {a: f for a, f in formats.items() if f != d.default_format}
+        return await self.update_poll(d.model_copy(update={"formats": tidy}))
 
     def reset_poll_stats(self, poll_id: str) -> PollView:
         self._task(poll_id).reset_stats()
@@ -392,19 +501,44 @@ class Studio:
             scale=fmt.scale,
         )
 
+    def _displayed_text(self, task: PollTask, address: int) -> str | None:
+        """Text the window shows for ``address`` after its last poll, if that poll worked."""
+        result = task.last_result
+        if result is None or result.values is None:
+            return None
+        cell = next((c for c in self.poll_data(task, result).cells if c.address == address), None)
+        return None if cell is None or cell.error else cell.text
+
     async def write_window(self, poll_id: str, req: WindowWrite) -> WritePlan:
         """Write a cell the way it is displayed: coils as bits, registers in engineering units."""
         plan = self.plan_window_write(poll_id, req)
+        task = self._task(poll_id)
         conn = self._connection(plan.connection_id)
         dev, addr, values = plan.device_id, plan.address, plan.values
+        send: Callable[[], Awaitable[None]]
         if plan.function == 5:
-            await conn.write_coil(dev, addr, bool(values[0]))
+            send = lambda: conn.write_coil(dev, addr, bool(values[0]))  # noqa: E731
         elif plan.function == 15:
-            await conn.write_coils(dev, addr, [bool(v) for v in values])
+            send = lambda: conn.write_coils(dev, addr, [bool(v) for v in values])  # noqa: E731
         elif plan.function == 6:
-            await conn.write_register(dev, addr, values[0])
+            send = lambda: conn.write_register(dev, addr, values[0])  # noqa: E731
         else:
-            await conn.write_registers(dev, addr, values)
+            send = lambda: conn.write_registers(dev, addr, values)  # noqa: E731
+        fmt = task.definition.formats.get(addr)
+        await self._logged(
+            send,
+            connection_id=conn.id,
+            connection_name=conn.config.name,
+            device_id=dev,
+            function=plan.function,
+            address=addr,
+            poll_id=poll_id,
+            alias=fmt.alias if fmt else "",
+            unit=plan.unit,
+            old=self._displayed_text(task, addr),
+            new=plan.text,
+            values=values,
+        )
         return plan
 
     # -- traffic -----------------------------------------------------------

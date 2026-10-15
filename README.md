@@ -27,8 +27,10 @@ network and open it from any browser.
 | ✅ | Raw TX/RX frame capture, error counters per window | core done |
 | ✅ | Optional API token, binds to 127.0.0.1 by default | done |
 | 🟡 | Multiple polling windows in the UI, each with its own scan rate | basic version done |
-| 🟡 | Write by double-clicking a cell (with confirmation), read-only connections, workspace autosave | done |
-| ⏳ | Per-cell formats and aliases in the table, JSON workspace import/export, CSV register maps | phase 4 |
+| ✅ | Write by double-clicking a cell, with a confirmation dialog and a write log | done |
+| ✅ | Read-only connections | done |
+| ✅ | Per-cell and per-range formats, aliases edited in the table | done |
+| ✅ | JSON workspaces (autosave, import, export), CSV register maps | done |
 | ⏳ | Traffic monitor panel, real-time chart | phase 5 |
 | ⏳ | Export to InfluxDB, publish over MQTT | phase 7 |
 | ✅ | REST API + WebSocket (the UI uses the same API) | done, OpenAPI at `/docs` |
@@ -131,7 +133,24 @@ preferably keep it behind a VPN or a reverse proxy with TLS.
 | `MODBUS_STUDIO_TOKEN` | *(unset)* | Require this bearer token on the API |
 | `MODBUS_STUDIO_TRAFFIC_BUFFER` | `5000` | Frames kept for the traffic monitor |
 | `MODBUS_STUDIO_WORKSPACE` | *(unset)* | Workspace JSON with connections and windows to load at startup |
+| `MODBUS_STUDIO_WRITE_LOG_FILE` | *(unset; `/data/writes.jsonl` in Docker)* | Append every write to this JSON Lines file |
 | `MODBUS_STUDIO_STATE_FILE` | *(unset; `/data/workspace.json` in Docker)* | Save the workspace here after every change and restore it at startup; once it exists it takes precedence over `MODBUS_STUDIO_WORKSPACE` |
+
+## Workspaces, register maps and the write log
+
+- **Workspaces.** Connections, windows, formats and aliases are saved after every change
+  (in Docker: `/data/workspace.json`) and restored at startup. **Export** downloads the
+  session as JSON; **Import…** loads one, replacing the session or adding to it.
+- **CSV register maps.** **CSV…** on a window applies a file with the columns
+  `address,alias,type,byte_order,scale,unit` (only `address` is required, `,` or `;`
+  separated). Every row is checked first and problems are listed by line; nothing is
+  applied until the whole file is valid. Addresses are 0-based protocol addresses.
+  [`docs/examples/simulator-map.csv`](docs/examples/simulator-map.csv) describes the
+  bundled simulator: import it into an FC03 window at address 0, quantity 28.
+- **Write log.** Every write sent from the UI or the API is recorded with the time,
+  connection, device, function, address, the value shown before and the new value,
+  including writes the device rejected. **Write log** in the toolbar shows it; it is kept
+  in `/data/writes.jsonl` (`MODBUS_STUDIO_WRITE_LOG_FILE` outside Docker).
 
 ## Simulator register map
 

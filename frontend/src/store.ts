@@ -1,5 +1,14 @@
 import { create } from 'zustand'
-import type { Cell, ConnectionView, PollData, PollView, ServerMessage } from './api/types'
+import type {
+  Cell,
+  ConnectionView,
+  PollData,
+  PollView,
+  ServerMessage,
+  WriteLogEntry,
+} from './api/types'
+
+const MAX_WRITES = 200
 
 export type LinkState = 'connecting' | 'open' | 'closed' | 'unauthorized'
 
@@ -11,6 +20,9 @@ interface StudioState {
   cells: Record<string, Cell[]>
   /** Latest result per window, successful or not. */
   latest: Record<string, PollData>
+  /** Write log, newest first. */
+  writes: WriteLogEntry[]
+  setWrites: (entries: WriteLogEntry[]) => void
   setLink: (link: LinkState) => void
   handle: (message: ServerMessage) => void
   upsertPoll: (view: PollView) => void
@@ -23,6 +35,8 @@ export const useStudio = create<StudioState>()((set) => ({
   polls: {},
   cells: {},
   latest: {},
+  writes: [],
+  setWrites: (entries) => set({ writes: entries.slice(0, MAX_WRITES) }),
   setLink: (link) => set({ link }),
   upsertPoll: (view) =>
     set((s) => ({ polls: { ...s.polls, [view.definition.id]: view } })),
@@ -59,6 +73,9 @@ export const useStudio = create<StudioState>()((set) => ({
         }
         case 'connection':
           return { connections: { ...s.connections, [message.data.config.id]: message.data } }
+        case 'write':
+          if (s.writes.some((w) => w.seq === message.data.seq)) return {}
+          return { writes: [message.data, ...s.writes].slice(0, MAX_WRITES) }
         default:
           return {}
       }

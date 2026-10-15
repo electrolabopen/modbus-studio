@@ -5,6 +5,8 @@ import type {
   PollDefinition,
   PollView,
   WindowWrite,
+  WriteLogEntry,
+  Workspace,
   WritePlan,
 } from './types'
 
@@ -16,10 +18,13 @@ export interface Health {
 
 export class ApiError extends Error {
   readonly status: number
+  /** Parsed JSON error body, when there was one (e.g. per-line CSV errors). */
+  readonly body: unknown
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, body: unknown = null) {
     super(message)
     this.status = status
+    this.body = body
   }
 }
 
@@ -78,7 +83,7 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
     } catch {
       // not JSON
     }
-    throw new ApiError(res.status, errorMessage(body, res.statusText))
+    throw new ApiError(res.status, errorMessage(body, res.statusText), body)
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
@@ -115,6 +120,15 @@ export const api = {
       ...json('POST', req),
       signal,
     }),
+  importRegisterMap: (id: string, csv: string) =>
+    request<PollView>(`/polls/${encodeURIComponent(id)}/register-map`, json('POST', { csv })),
+  exportWorkspace: () => request<Workspace>('/workspace'),
+  importWorkspace: (workspace: Workspace, mode: 'replace' | 'merge') =>
+    request<{ connections: number; polls: number }>(
+      `/workspace?mode=${mode}`,
+      json('POST', workspace),
+    ),
+  listWrites: (limit = 200) => request<WriteLogEntry[]>(`/writes?limit=${limit}`),
   write: (id: string, req: WindowWrite) =>
     request<WritePlan>(`/polls/${encodeURIComponent(id)}/write`, json('POST', req)),
 }

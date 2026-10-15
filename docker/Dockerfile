@@ -36,7 +36,8 @@ USER modbus
 # with the published port instead (docker-compose.yml binds to 127.0.0.1).
 ENV MODBUS_STUDIO_HOST=0.0.0.0 \
     MODBUS_STUDIO_PORT=8000 \
-    MODBUS_STUDIO_STATE_FILE=/data/workspace.json
+    MODBUS_STUDIO_STATE_FILE=/data/workspace.json \
+    MODBUS_STUDIO_WRITE_LOG_FILE=/data/writes.jsonl
 EXPOSE 8000
 # Probe every second while starting so `docker compose up --wait` returns quickly.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --start-interval=1s \

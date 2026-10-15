@@ -3,6 +3,20 @@
 ## [Unreleased]
 
 ### Added
+- Workspace export and import from the UI (**Export**, **Import…**): replace the session or
+  merge into it; `GET /api/workspace`, `POST /api/workspace?mode=replace|merge`. Files
+  are validated before anything is touched; merging refuses ids already in use.
+- CSV register maps (**CSV…** on a window, `POST /api/polls/{id}/register-map`): columns
+  address, alias, type, byte_order, scale, unit; `,` or `;` separated (with decimal
+  comma), BOM and `#` comments accepted. All rows are validated first (unknown types,
+  overlapping values, rows outside the window, 4xxxx-style addresses, rows hidden by the
+  window format) and reported per line. Example for the simulator in
+  `docs/examples/simulator-map.csv`.
+- Write log: every write (time, connection, device, function, address, value before and
+  after, raw data, result) is kept in `/data/writes.jsonl`, listed by `GET /api/writes`,
+  pushed over the WebSocket and shown in the **Write log** panel. Rejected writes are
+  logged too.
+- The write dialog opens with Cancel focused, so a stray Enter does not write.
 - Per-cell and per-range display formats from the table: select rows (click,
   Shift+click for a range) and use **Format…**, or double-click an address. Sets data
   type, byte order, scale and unit; a range of 32/64-bit values steps two or four

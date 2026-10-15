@@ -9,6 +9,8 @@ interface ModalProps {
   onClose: () => void
   /** Optional extra button on the left of the actions, e.g. "Reset". */
   secondary?: { label: string; onClick: () => void }
+  /** Focus Cancel when the dialog opens, so a stray Enter does not confirm. */
+  focusCancel?: boolean
   children: ReactNode
 }
 
@@ -20,6 +22,7 @@ export function Modal({
   onSubmit,
   onClose,
   secondary,
+  focusCancel,
   children,
 }: ModalProps) {
   useEffect(() => {
@@ -54,7 +57,7 @@ export function Modal({
               {secondary.label}
             </button>
           )}
-          <button type="button" className="btn" onClick={onClose}>
+          <button type="button" className="btn" autoFocus={focusCancel} onClick={onClose}>
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={busy}>

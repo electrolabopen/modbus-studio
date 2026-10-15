@@ -6,12 +6,13 @@ thread pool, and pymodbus clients and poll tasks must be created on the event lo
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 
 from ..core.connection import RequestError
+from ..core.registermap import RegisterMapError
 from ..core.studio import (
     ConflictError,
     ForbiddenError,
@@ -27,10 +28,14 @@ from ..models.views import (
     PollData,
     PollView,
     RawWrite,
+    RegisterMapImport,
     TrafficEntryView,
     WindowWrite,
+    WorkspaceImportResult,
+    WriteLogEntry,
     WritePlan,
 )
+from ..models.workspace import Workspace
 from .auth import require_token
 from .ws import Hub
 
@@ -208,6 +213,48 @@ async def clear_traffic(studio: StudioDep) -> Response:
 # -- error mapping ------------------------------------------------------------
 
 
+@router.post(
+    "/polls/{poll_id}/register-map",
+    tags=["polls"],
+    summary="Replace a window's cell formats with a CSV register map",
+    description="Columns: address, alias, type, byte_order, scale, unit. Nothing is "
+    "applied unless every row is valid; problems are listed per line in `errors`.",
+)
+async def import_register_map(
+    poll_id: str, body: RegisterMapImport, studio: StudioDep, hub: HubDep
+) -> PollView:
+    view = await studio.import_register_map(poll_id, body.csv)
+    hub.publish_snapshot()
+    return view
+
+
+@router.get("/workspace", tags=["workspace"], summary="Export connections and windows")
+async def export_workspace(studio: StudioDep) -> Workspace:
+    return studio.export_workspace()
+
+
+@router.post("/workspace", tags=["workspace"], summary="Import a workspace file")
+async def import_workspace(
+    workspace: Workspace,
+    studio: StudioDep,
+    hub: HubDep,
+    mode: Annotated[
+        Literal["replace", "merge"],
+        Query(description="replace: drop the current session first; merge: add to it"),
+    ] = "replace",
+) -> WorkspaceImportResult:
+    await studio.import_workspace(workspace, replace=mode == "replace")
+    hub.publish_snapshot()
+    return WorkspaceImportResult(connections=len(workspace.connections), polls=len(workspace.polls))
+
+
+@router.get("/writes", tags=["writes"], summary="Write log, newest first")
+async def list_writes(
+    studio: StudioDep, limit: Annotated[int, Query(ge=1, le=500)] = 200
+) -> list[WriteLogEntry]:
+    return studio.write_log.entries(limit)
+
+
 def install_error_handlers(app: FastAPI) -> None:
     def detail(code: int, message: str) -> JSONResponse:
         return JSONResponse(status_code=code, content={"detail": message})
@@ -227,6 +274,16 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(InvalidRequestError)
     async def _invalid(_: Request, exc: InvalidRequestError) -> JSONResponse:
         return detail(status.HTTP_400_BAD_REQUEST, str(exc))
+
+    @app.exception_handler(RegisterMapError)
+    async def _register_map(_: Request, exc: RegisterMapError) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "detail": str(exc),
+                "errors": [{"line": e.line, "message": e.message} for e in exc.errors],
+            },
+        )
 
     @app.exception_handler(RequestError)
     async def _modbus(_: Request, exc: RequestError) -> JSONResponse:

@@ -7,6 +7,7 @@ Server -> client messages (JSON objects with a ``type``):
 - ``poll``: a new result of one polling window (decoded cells + counters).
 - ``connection``: state and counters of a connection, after each of its polls.
 - ``traffic``: one raw frame. Only sent to clients subscribed to ``traffic``.
+- ``write``: one new entry of the write log.
 
 Client -> server messages:
 
@@ -30,11 +31,12 @@ from ..config import Settings, get_settings
 from ..core.poller import PollResult
 from ..core.studio import Studio
 from ..core.traffic import TrafficEntry
+from ..models.views import WriteLogEntry
 
 log = logging.getLogger(__name__)
 
-TOPICS = frozenset({"polls", "connections", "traffic"})
-DEFAULT_TOPICS = frozenset({"polls", "connections"})
+TOPICS = frozenset({"polls", "connections", "traffic", "writes"})
+DEFAULT_TOPICS = frozenset({"polls", "connections", "writes"})
 AUTH_TIMEOUT_S = 5.0
 
 Message = dict[str, Any]
@@ -62,6 +64,7 @@ class Hub:
         self._unsubscribe = [
             studio.polls.subscribe(self._on_poll),
             studio.traffic.subscribe(self._on_traffic),
+            studio.write_log.subscribe(self._on_write),
         ]
 
     def close(self) -> None:
@@ -90,6 +93,9 @@ class Hub:
             return
         view = self.studio.traffic_view(entry)
         self._publish("traffic", {"type": "traffic", "data": view.model_dump(mode="json")})
+
+    def _on_write(self, entry: WriteLogEntry) -> None:
+        self._publish("writes", {"type": "write", "data": entry.model_dump(mode="json")})
 
     def snapshot(self) -> Message:
         return {

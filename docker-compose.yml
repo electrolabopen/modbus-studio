@@ -32,6 +32,7 @@ services:
       MODBUS_STUDIO_TOKEN: ${MODBUS_STUDIO_TOKEN:-}
       MODBUS_STUDIO_WORKSPACE: /etc/modbus-studio/workspace.json
       MODBUS_STUDIO_STATE_FILE: /data/workspace.json
+      MODBUS_STUDIO_WRITE_LOG_FILE: /data/writes.jsonl
     volumes:
       - ./docker/demo-workspace.json:/etc/modbus-studio/workspace.json:ro
       - modbus-studio-data:/data

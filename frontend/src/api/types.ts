@@ -120,6 +120,41 @@ export type ServerMessage =
   | { type: 'poll'; data: PollData }
   | { type: 'connection'; data: ConnectionView }
   | { type: 'traffic'; data: unknown }
+  | { type: 'write'; data: WriteLogEntry }
+
+/** Connections and windows of a session, as exported to / imported from JSON. */
+export interface Workspace {
+  version: 1
+  connections: (ConnectionConfig & { id: string })[]
+  polls: PollDefinition[]
+}
+
+/** One problem in a CSV register map, as reported by the server. */
+export interface MapError {
+  line: number
+  message: string
+}
+
+/** One write sent (or attempted) to a device. */
+export interface WriteLogEntry {
+  seq: number
+  /** Unix time in seconds. */
+  timestamp: number
+  connection_id: string
+  connection_name: string
+  device_id: number
+  function: 5 | 6 | 15 | 16
+  address: number
+  poll_id: string | null
+  alias: string
+  unit: string
+  /** Value the window showed before the write; null when unknown. */
+  old: string | null
+  new: string
+  values: number[]
+  ok: boolean
+  error: string | null
+}
 
 /** Display settings for cells start..end; omitted fields keep each cell's value. */
 export interface FormatPatch {

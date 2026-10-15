@@ -15,6 +15,7 @@ from .api.auth import require_token
 from .config import Settings, get_settings
 from .core.persistence import AutoSaver, StateFile
 from .core.studio import Studio
+from .core.writelog import WriteLog
 from .models.workspace import Workspace
 
 log = logging.getLogger("modbus_studio")
@@ -27,7 +28,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = app.dependency_overrides.get(get_settings, get_settings)()
     # Frames are captured by the traffic monitor; pymodbus' own frame logging is just noise.
     logging.getLogger("pymodbus").setLevel(logging.ERROR)
-    studio = Studio(traffic_buffer=settings.traffic_buffer)
+    studio = Studio(
+        traffic_buffer=settings.traffic_buffer,
+        write_log=WriteLog(settings.write_log_file),
+    )
     state = StateFile(settings.state_file) if settings.state_file else None
     restored = state.load() if state else None
     if restored is not None:

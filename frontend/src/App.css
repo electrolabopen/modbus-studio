@@ -491,3 +491,103 @@ select:focus,
 .modal-secondary {
   margin-right: auto;
 }
+
+/* -- main content: windows + write log ---------------------------------- */
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.write-log {
+  display: flex;
+  flex-direction: column;
+  max-height: 40%;
+  min-height: 140px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.write-log header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.write-log h2 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.write-log .table-wrap {
+  overflow: auto;
+}
+
+.write-log table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.write-log th,
+.write-log td {
+  padding: 3px 10px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.write-log th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.write-log .failed td {
+  color: var(--danger);
+}
+
+.write-log .arrow {
+  color: var(--text-muted);
+}
+
+.toolbar-error {
+  align-self: center;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.error-list {
+  max-height: 240px;
+  margin: 10px 0 0;
+  padding: 8px 10px 8px 28px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.error-list li + li {
+  margin-top: 3px;
+}
+
+.choice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.choice small {
+  display: block;
+  color: var(--text-muted);
+}

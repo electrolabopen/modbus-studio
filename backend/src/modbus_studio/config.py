@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     # Where the current workspace is saved after every change and restored at startup.
     # Once this file exists it wins over ``workspace``, which then only seeds a first run.
     state_file: Path | None = None
+    # Append-only JSON Lines log of every write (time, device, address, old/new value).
+    write_log_file: Path | None = None
     log_level: str = "info"
 
     @property

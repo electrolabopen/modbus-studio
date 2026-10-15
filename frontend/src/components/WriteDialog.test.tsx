@@ -100,6 +100,13 @@ describe('write by double-click', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
+  it('focuses Cancel when it opens, so Enter does not write', () => {
+    mockApi(() => plan())
+    renderWindow()
+    fireEvent.doubleClick(screen.getByText('21.5'))
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+  })
+
   it('cannot confirm an invalid value', async () => {
     mockApi(() => plan())
     renderWindow()

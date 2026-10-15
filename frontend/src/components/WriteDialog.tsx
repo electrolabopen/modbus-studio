@@ -95,6 +95,7 @@ export function WriteDialog({ view, cell, onClose }: Props) {
       error={error}
       onSubmit={submit}
       onClose={onClose}
+      focusCancel
     >
       <p className="hint">
         {where} · device {def.device_id} · address {cell.address}
@@ -104,7 +105,6 @@ export function WriteDialog({ view, cell, onClose }: Props) {
       {isCoil ? (
         <Field label="New state">
           <select
-            autoFocus
             value={coil ? '1' : '0'}
             onChange={(e) => setCoil(e.target.value === '1')}
           >
@@ -115,7 +115,6 @@ export function WriteDialog({ view, cell, onClose }: Props) {
       ) : (
         <Field label={`Value${cell.unit ? ` (${cell.unit})` : ''}`}>
           <input
-            autoFocus
             inputMode="decimal"
             value={text}
             onFocus={(e) => e.target.select()}

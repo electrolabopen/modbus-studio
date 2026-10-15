@@ -10,6 +10,7 @@ import {
   type PollView,
 } from '../api/types'
 import { useStudio } from '../store'
+import { CsvImportDialog } from './CsvImportDialog'
 import { FormatDialog } from './FormatDialog'
 import { PollDialog } from './PollDialog'
 import { WriteDialog } from './WriteDialog'
@@ -21,7 +22,9 @@ function errorText(data: PollData): string {
     case 'timeout':
       return 'Timeout error'
     case 'disconnected':
-      return 'No connection'
+      return data.error && data.error !== 'not connected'
+        ? `No connection: ${data.error}`
+        : 'No connection'
     case 'invalid':
       return `Invalid response: ${data.error ?? ''}`
     default:
@@ -51,6 +54,8 @@ export function PollWindow({ view }: { view: PollView }) {
   const [formatting, setFormatting] = useState<{ start: number; end: number } | null>(null)
   const [aliasEditing, setAliasEditing] = useState<number | null>(null)
   const [selection, setSelection] = useState<{ anchor: number; focus: number } | null>(null)
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const csvInput = useRef<HTMLInputElement>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const stats = latest?.stats ?? view.stats
@@ -165,6 +170,24 @@ export function PollWindow({ view }: { view: PollView }) {
               </button>
             </>
           )}
+          <button
+            className="btn btn-small"
+            title="Import a CSV register map (address, alias, type, byte_order, scale, unit)"
+            onClick={() => csvInput.current?.click()}
+          >
+            CSV…
+          </button>
+          <input
+            ref={csvInput}
+            type="file"
+            accept=".csv,text/csv,text/plain"
+            hidden
+            aria-label="CSV register map file"
+            onChange={(e) => {
+              setCsvFile(e.target.files?.[0] ?? null)
+              e.target.value = '' // picking the same file again must fire onChange
+            }}
+          />
           <button className="btn btn-small" onClick={() => run(() => api.resetPoll(def.id))}>
             Reset
           </button>
@@ -251,6 +274,7 @@ export function PollWindow({ view }: { view: PollView }) {
 
       {editing && <PollDialog existing={view} onClose={() => setEditing(false)} />}
       {writing && <WriteDialog view={view} cell={writing} onClose={() => setWriting(null)} />}
+      {csvFile && <CsvImportDialog view={view} file={csvFile} onClose={() => setCsvFile(null)} />}
       {formatting && (
         <FormatDialog
           view={view}

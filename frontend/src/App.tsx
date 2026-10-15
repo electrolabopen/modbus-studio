@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
-import { getHealth, getToken, setToken, type Health } from './api/client'
+import { useEffect, useRef, useState } from 'react'
+import { api, getHealth, getToken, setToken, type Health } from './api/client'
 import { connectSocket } from './api/socket'
 import { ConnectionDialog } from './components/ConnectionDialog'
+import { ImportWorkspaceDialog } from './components/ImportWorkspaceDialog'
 import { Field, Modal } from './components/Modal'
 import { PollDialog } from './components/PollDialog'
 import { PollWindow } from './components/PollWindow'
 import { Sidebar } from './components/Sidebar'
+import { WriteLogPanel } from './components/WriteLogPanel'
 import { useStudio, type LinkState } from './store'
 import './App.css'
 
@@ -18,6 +20,7 @@ export default function App() {
   const [backend, setBackend] = useState<BackendState>({ kind: 'loading' })
   const [tokenNeeded, setTokenNeeded] = useState(false)
   const [linkKey, setLinkKey] = useState(0)
+  const [logOpen, setLogOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -47,14 +50,21 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <span className="brand">modbus-studio</span>
-        <Toolbar enabled={online && link === 'open'} />
+        <Toolbar
+          enabled={online && link === 'open'}
+          logOpen={logOpen}
+          onToggleLog={() => setLogOpen((open) => !open)}
+        />
         <div className="topbar-right">
           <LinkBadge backend={backend} link={link} />
         </div>
       </header>
       <div className="main">
         <Sidebar />
-        <Workspace />
+        <div className="content">
+          <Workspace />
+          {logOpen && <WriteLogPanel onClose={() => setLogOpen(false)} />}
+        </div>
       </div>
       {askToken && (
         <TokenDialog
@@ -69,9 +79,36 @@ export default function App() {
   )
 }
 
-function Toolbar({ enabled }: { enabled: boolean }) {
+interface ToolbarProps {
+  enabled: boolean
+  logOpen: boolean
+  onToggleLog: () => void
+}
+
+function Toolbar({ enabled, logOpen, onToggleLog }: ToolbarProps) {
   const hasConnections = useStudio((s) => Object.keys(s.connections).length > 0)
   const [dialog, setDialog] = useState<'connection' | 'poll' | null>(null)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
+
+  const exportWorkspace = async () => {
+    setError(null)
+    try {
+      const workspace = await api.exportWorkspace()
+      const blob = new Blob([JSON.stringify(workspace, null, 2) + '\n'], {
+        type: 'application/json',
+      })
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `modbus-studio-workspace-${timestamp()}.json`
+      link.click()
+      URL.revokeObjectURL(link.href)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   return (
     <div className="toolbar">
       <button className="btn" disabled={!enabled} onClick={() => setDialog('connection')}>
@@ -85,10 +122,44 @@ function Toolbar({ enabled }: { enabled: boolean }) {
       >
         + Window
       </button>
+      <button className="btn" disabled={!enabled} onClick={exportWorkspace}>
+        Export
+      </button>
+      <button className="btn" disabled={!enabled} onClick={() => fileInput.current?.click()}>
+        Import…
+      </button>
+      <input
+        ref={fileInput}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        aria-label="Workspace file"
+        onChange={(e) => {
+          setImportFile(e.target.files?.[0] ?? null)
+          e.target.value = ''
+        }}
+      />
+      <button className="btn" aria-pressed={logOpen} disabled={!enabled} onClick={onToggleLog}>
+        Write log
+      </button>
+      {error && (
+        <span className="toolbar-error" role="alert">
+          {error}
+        </span>
+      )}
+      {importFile && (
+        <ImportWorkspaceDialog file={importFile} onClose={() => setImportFile(null)} />
+      )}
       {dialog === 'connection' && <ConnectionDialog onClose={() => setDialog(null)} />}
       {dialog === 'poll' && <PollDialog onClose={() => setDialog(null)} />}
     </div>
   )
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+function timestamp(d = new Date()): string {
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
 }
 
 function Workspace() {

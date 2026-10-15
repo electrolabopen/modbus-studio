@@ -120,6 +120,40 @@ class WritePlan(BaseModel):
     scale: float | None = None
 
 
+class RegisterMapImport(BaseModel):
+    """A CSV register map, see ``core.registermap`` for the format."""
+
+    csv: str = Field(max_length=1_000_000)
+
+
+class WorkspaceImportResult(BaseModel):
+    connections: int
+    polls: int
+
+
+class WriteLogEntry(BaseModel):
+    """One write sent to a device (or attempted), as kept in the write log."""
+
+    seq: int
+    timestamp: float
+    connection_id: str
+    connection_name: str = ""
+    device_id: int
+    function: Literal[5, 6, 15, 16]
+    address: int
+    # Window the write came from; None for raw writes through the API.
+    poll_id: str | None = None
+    alias: str = ""
+    unit: str = ""
+    # Value shown by the window before the write (its last poll); None if unknown.
+    old: str | None = None
+    new: str
+    # Coil states or registers exactly as sent.
+    values: list[int]
+    ok: bool
+    error: str | None = None
+
+
 class RawWrite(BaseModel):
     device_id: int = Field(default=1, ge=0, le=255)
     function: Literal[5, 6, 15, 16]
