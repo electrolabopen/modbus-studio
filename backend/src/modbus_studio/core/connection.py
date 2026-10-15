@@ -3,6 +3,10 @@
 Several polling windows may share one connection. Modbus RTU is half-duplex
 and many TCP gateways only handle one outstanding request, so every
 transaction on a connection goes through a single lock.
+
+A request cancelled after it was sent (a window stopped mid-request) still gets
+its reply. RTU frames carry no transaction id, so the next request first waits
+for that reply to arrive and be dropped; otherwise it would be taken as its own.
 """
 
 from __future__ import annotations
@@ -37,6 +41,9 @@ IN_CONTAINER = Path("/.dockerenv").exists()
 LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
 # Opening a port to find out why it failed can hang (e.g. Bluetooth serial ports).
 SERIAL_PROBE_TIMEOUT_S = 5.0
+# Silence that ends a reply still arriving after its request was cancelled. RTU
+# allows 1.5 character times inside a frame; TCP segments arrive back to back.
+SETTLE_QUIET_S = 0.05
 
 EXCEPTION_NAMES: dict[int, str] = {
     1: "Illegal function",
@@ -127,6 +134,11 @@ class Connection:
         self._traffic = traffic
         self._client = client_factory(config, self._trace)
         self._lock = asyncio.Lock()
+        # Monotonic times of the last frame sent and received, and an event set on
+        # every received chunk; used to let the reply of a cancelled request pass.
+        self._last_tx = self._last_rx = 0.0
+        self._rx = asyncio.Event()
+        self._settle_deadline: float | None = None
 
     @property
     def id(self) -> str:
@@ -134,7 +146,31 @@ class Connection:
 
     def _trace(self, sending: bool, data: bytes) -> bytes:
         self._traffic.record(self.id, Direction.TX if sending else Direction.RX, data)
+        now = asyncio.get_running_loop().time()
+        if sending:
+            self._last_tx = now
+        else:
+            self._last_rx = now
+            self._rx.set()
         return data
+
+    async def _settle(self) -> None:
+        """Let the reply of a cancelled request arrive (pymodbus drops it) first."""
+        deadline, self._settle_deadline = self._settle_deadline, None
+        if deadline is None:
+            return
+        loop = asyncio.get_running_loop()
+        while (remaining := deadline - loop.time()) > 0:
+            replying = self._last_rx > self._last_tx
+            self._rx.clear()
+            try:
+                # Until the reply starts, then until it stops.
+                await asyncio.wait_for(
+                    self._rx.wait(), min(remaining, SETTLE_QUIET_S) if replying else remaining
+                )
+            except asyncio.TimeoutError:
+                if replying:
+                    return
 
     async def connect(self) -> bool:
         async with self._lock:
@@ -155,8 +191,9 @@ class Connection:
             except Exception as exc:  # serial ports raise OS-specific errors
                 log.debug("connect %s failed: %s", self.id, exc)
                 error = str(exc)
-            if not ok and error is None:
-                error = await self._serial_open_error() or self._connect_failed_message()
+            if not ok:
+                # A serial port explains itself better than pymodbus or pyserial do.
+                error = await self._serial_open_error() or error or self._connect_failed_message()
         self.last_error = None if ok else error
         self.state = ConnectionState.CONNECTED if ok else ConnectionState.DISCONNECTED
         return ok
@@ -180,7 +217,15 @@ class Connection:
             return None
         try:
             return await asyncio.wait_for(
-                asyncio.to_thread(open_error, cfg.serial_port), SERIAL_PROBE_TIMEOUT_S
+                asyncio.to_thread(
+                    open_error,
+                    cfg.serial_port,
+                    baudrate=cfg.baudrate,
+                    bytesize=cfg.bytesize,
+                    parity=cfg.parity,
+                    stopbits=cfg.stopbits,
+                ),
+                SERIAL_PROBE_TIMEOUT_S,
             )
         except asyncio.TimeoutError:
             return f"serial port {cfg.serial_port} does not respond to open"
@@ -207,9 +252,15 @@ class Connection:
             if not await self._ensure_connected():
                 self.stats.disconnected += 1
                 raise RequestError(ErrorKind.DISCONNECTED, self.last_error or "not connected")
+            await self._settle()
             self.stats.requests += 1
+            started = asyncio.get_running_loop().time()
             try:
                 result = await call()
+            except asyncio.CancelledError:
+                if self._last_tx >= started:
+                    self._settle_deadline = self._last_tx + self.config.timeout_s
+                raise
             except ConnectionException as exc:
                 self.stats.disconnected += 1
                 self.state = ConnectionState.DISCONNECTED

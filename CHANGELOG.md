@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### Added
+- The simulator serves RTU on a serial port: `modbus-studio-sim --serial PORT` with
+  `--baudrate`, `--bytesize`, `--parity` (default E) and `--stopbits`; `--tcp-port 0` /
+  `--rtu-tcp-port 0` turn off the TCP servers. A port that does not open is reported
+  with its reason.
+- [`docs/rtu-linux.md`](docs/rtu-linux.md): USB-RS485 adapters on Linux (`dialout`, udev
+  rules, `/dev/serial/by-id`, FTDI latency, brltty and ModemManager), Docker `--device`,
+  an RS-485 wiring checklist, and trying RTU without hardware with socat (Linux) or
+  com0com (Windows).
+- RTU tests over a real serial line: CI runs the simulator and modbus-studio on a socat
+  pty pair; `MODBUS_STUDIO_TEST_SERIAL_PAIR=COM10,COM11` runs them on a com0com pair.
+- A serial port that refuses the line settings (e.g. parity on a Linux pseudo-terminal)
+  says so.
 - Modbus RTU connections from the UI: **+ Connection** → "Modbus RTU (serial port)" with
   baud rate, data bits, parity and stop bits (default 19200 8E1). The dialog lists the
   serial ports of the machine running the server (`GET /api/serial-ports`) with
@@ -78,6 +90,10 @@
   out, with a hint when `127.0.0.1` is used inside a container. Shown in the sidebar.
 
 ### Fixed
+- RTU and RTU over TCP: after a request was cancelled in flight (stopping or editing a
+  window), its late reply could be taken as the reply to the next request on the
+  connection, showing another address's values. The next request now waits for that
+  reply to arrive and drops it, for at most the connection timeout.
 - Stopping a polling window (and so shutting down the app) could hang forever on
   Python < 3.12: `asyncio.wait_for`, used by pymodbus for every response, can swallow a
   cancellation. This hung the py3.10 CI job intermittently. CI jobs now have time limits.

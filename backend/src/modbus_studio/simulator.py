@@ -1,7 +1,8 @@
 """Modbus slave simulator for development, demos and integration tests.
 
 Run with ``modbus-studio-sim``. It serves the same data on two ports:
-Modbus TCP (default 5020) and RTU over TCP (default 5021).
+Modbus TCP (default 5020) and RTU over TCP (default 5021), and optionally as an
+RTU slave on a serial port (``--serial /dev/ttyUSB0`` or ``--serial COM11``).
 
 Register map (identical for holding and input registers, 0-based addresses)::
 
@@ -31,14 +32,16 @@ import math
 import signal
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from pymodbus import FramerType
-from pymodbus.server import ModbusTcpServer
+from pymodbus.server import ModbusSerialServer, ModbusTcpServer
 from pymodbus.simulator import DataType as SimType
 from pymodbus.simulator import SimData, SimDevice
 
 from .core.codec import ByteOrder, DataType, encode
+from .core.serialports import open_error
 
 log = logging.getLogger("modbus_studio.simulator")
 
@@ -121,23 +124,94 @@ def build_devices(clock: Callable[[], float] = time.time) -> list[SimDevice]:
     ]
 
 
+@dataclass(frozen=True)
+class SerialLine:
+    """A serial port served as an RTU slave. Defaults match a new RTU connection."""
+
+    port: str
+    baudrate: int = 19200
+    bytesize: int = 8
+    parity: str = "E"
+    stopbits: int = 1
+
+    def __str__(self) -> str:
+        return f"{self.port} {self.baudrate} {self.bytesize}{self.parity}{self.stopbits}"
+
+
 class Simulator:
-    def __init__(self, host: str = "0.0.0.0", tcp_port: int = 5020, rtu_tcp_port: int = 5021):
-        self.servers = [
-            ModbusTcpServer(build_devices(), framer=FramerType.SOCKET, address=(host, tcp_port)),
-            ModbusTcpServer(build_devices(), framer=FramerType.RTU, address=(host, rtu_tcp_port)),
-        ]
+    """The simulated devices on Modbus TCP, RTU over TCP and, optionally, a serial port.
+
+    A TCP port of 0 disables that server. Each server has its own copy of the data.
+    """
+
+    def __init__(
+        self,
+        host: str = "0.0.0.0",
+        tcp_port: int = 5020,
+        rtu_tcp_port: int = 5021,
+        serial: SerialLine | None = None,
+    ):
+        self.servers: list[ModbusTcpServer | ModbusSerialServer] = []
+        # What each server listens on, for error messages.
+        self._names: list[str] = []
+        if tcp_port:
+            self._names.append(f"Modbus TCP on {host}:{tcp_port}")
+            self.servers.append(
+                ModbusTcpServer(build_devices(), framer=FramerType.SOCKET, address=(host, tcp_port))
+            )
+        if rtu_tcp_port:
+            self._names.append(f"RTU over TCP on {host}:{rtu_tcp_port}")
+            self.servers.append(
+                ModbusTcpServer(
+                    build_devices(), framer=FramerType.RTU, address=(host, rtu_tcp_port)
+                )
+            )
+        self._serial = serial
+        if serial:
+            self._names.append(f"RTU on {serial}")
+            self.servers.append(
+                ModbusSerialServer(
+                    build_devices(),
+                    framer=FramerType.RTU,
+                    port=serial.port,
+                    baudrate=serial.baudrate,
+                    bytesize=serial.bytesize,
+                    parity=serial.parity,
+                    stopbits=serial.stopbits,
+                )
+            )
         self._tasks: list[asyncio.Task[Any]] = []
 
     async def start(self) -> None:
         for server in self.servers:
             self._tasks.append(asyncio.create_task(server.serve_forever()))
-        # serve_forever() binds asynchronously; wait until both are listening.
+        # serve_forever() binds and opens asynchronously; wait until all are serving.
         for _ in range(100):
             if all(s.is_active() for s in self.servers):
                 return
+            # A server that could not bind or open its port ends its task at once.
+            if any(t.done() for t in self._tasks):
+                break
             await asyncio.sleep(0.02)
-        raise RuntimeError("simulator failed to start")
+        failed = next(
+            (i for i, t in enumerate(self._tasks) if t.done()),
+            next(i for i, s in enumerate(self.servers) if not s.is_active()),
+        )
+        await self.stop()
+        serial = self._serial
+        if serial and isinstance(self.servers[failed], ModbusSerialServer):
+            # pymodbus only says that the port did not open; find out why.
+            reason = await asyncio.to_thread(
+                open_error,
+                serial.port,
+                baudrate=serial.baudrate,
+                bytesize=serial.bytesize,
+                parity=serial.parity,
+                stopbits=serial.stopbits,
+            )
+        else:
+            reason = "address in use?"
+        raise RuntimeError(f"simulator failed to start {self._names[failed]}: {reason}")
 
     async def stop(self) -> None:
         for server in self.servers:
@@ -147,10 +221,15 @@ class Simulator:
         await asyncio.gather(*self._tasks, return_exceptions=True)
 
 
-async def _serve(host: str, tcp_port: int, rtu_tcp_port: int) -> None:
-    sim = Simulator(host, tcp_port, rtu_tcp_port)
+async def _serve(host: str, tcp_port: int, rtu_tcp_port: int, serial: SerialLine | None) -> None:
+    sim = Simulator(host, tcp_port, rtu_tcp_port, serial)
     await sim.start()
-    log.info("Modbus TCP on %s:%d, RTU over TCP on %s:%d", host, tcp_port, host, rtu_tcp_port)
+    if tcp_port:
+        log.info("Modbus TCP on %s:%d", host, tcp_port)
+    if rtu_tcp_port:
+        log.info("RTU over TCP on %s:%d", host, rtu_tcp_port)
+    if serial:
+        log.info("RTU on serial port %s", serial)
     stop = asyncio.Event()
     # As PID 1 in a container SIGTERM has no default action: without a handler
     # `docker compose stop` waits 10 s and then kills the process.
@@ -165,13 +244,28 @@ async def _serve(host: str, tcp_port: int, rtu_tcp_port: int) -> None:
 def run() -> None:
     parser = argparse.ArgumentParser(description="modbus-studio slave simulator")
     parser.add_argument("--host", default="0.0.0.0")
-    parser.add_argument("--tcp-port", type=int, default=5020)
-    parser.add_argument("--rtu-tcp-port", type=int, default=5021)
+    parser.add_argument("--tcp-port", type=int, default=5020, help="0 disables it")
+    parser.add_argument("--rtu-tcp-port", type=int, default=5021, help="0 disables it")
+    line = parser.add_argument_group("RTU on a serial port")
+    line.add_argument("--serial", metavar="PORT", help="e.g. /dev/ttyUSB0, /dev/pts/3, COM11")
+    line.add_argument("--baudrate", type=int, default=19200)
+    line.add_argument("--bytesize", type=int, choices=[7, 8], default=8)
+    line.add_argument("--parity", choices=["N", "E", "O"], default="E")
+    line.add_argument("--stopbits", type=int, choices=[1, 2], default=1)
     args = parser.parse_args()
+    serial = (
+        SerialLine(args.serial, args.baudrate, args.bytesize, args.parity, args.stopbits)
+        if args.serial
+        else None
+    )
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logging.getLogger("pymodbus").setLevel(logging.ERROR)
-    with contextlib.suppress(KeyboardInterrupt):
-        asyncio.run(_serve(args.host, args.tcp_port, args.rtu_tcp_port))
+    try:
+        asyncio.run(_serve(args.host, args.tcp_port, args.rtu_tcp_port, serial))
+    except KeyboardInterrupt:
+        pass
+    except RuntimeError as exc:
+        parser.exit(1, f"modbus-studio-sim: {exc}\n")
 
 
 if __name__ == "__main__":

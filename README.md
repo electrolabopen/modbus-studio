@@ -19,7 +19,7 @@ network and open it from any browser.
 | | Feature | Status |
 |---|---|---|
 | ✅ | Modbus TCP, RTU over TCP | core done |
-| ✅ | Modbus RTU (serial): port discovery, line settings in the UI | done; hardware validation in phase 6 |
+| ✅ | Modbus RTU (serial): port discovery, line settings in the UI, [Linux guide](docs/rtu-linux.md) | tested over virtual ports; a physical adapter is not validated yet |
 | ✅ | Read FC01–FC04, write FC05/06/15/16 | core done |
 | ✅ | signed, unsigned, hex, binary, 32-bit long/float, 64-bit long/double | core done |
 | ✅ | Byte orders ABCD, CDAB, BADC, DCBA | core done |
@@ -152,6 +152,20 @@ preferably keep it behind a VPN or a reverse proxy with TLS.
   connection, device, function, address, the value shown before and the new value,
   including writes the device rejected. **Write log** in the toolbar shows it; it is kept
   in `/data/writes.jsonl` (`MODBUS_STUDIO_WRITE_LOG_FILE` outside Docker).
+
+## Modbus RTU on a serial port
+
+Pick **Modbus RTU (serial port)** in **+ Connection**: the dialog lists the serial ports
+of the machine running the server. [`docs/rtu-linux.md`](docs/rtu-linux.md) covers USB-RS485
+adapters on Linux (`dialout`, udev rules, `/dev/serial/by-id`, Docker `--device`, wiring)
+and how to try RTU without hardware: with socat on Linux, or com0com on Windows.
+
+The simulator can also be an RTU slave on a serial port:
+
+```bash
+modbus-studio-sim --serial /dev/ttyUSB0                 # 19200 8E1, plus the TCP ports
+modbus-studio-sim --tcp-port 0 --rtu-tcp-port 0 --serial COM10 --baudrate 9600 --parity N
+```
 
 ## Simulator register map
 

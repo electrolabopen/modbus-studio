@@ -59,6 +59,12 @@ def test_missing_by_id_directory_is_not_an_error(monkeypatch, tmp_path):
             "permission denied on serial port P; add the user to the 'dialout' group "
             "(log in again afterwards), or in Docker pass it with --device",
         ),
+        # termios.error from tcsetattr: a Linux pty refusing parity.
+        (
+            Exception(errno.EINVAL, "Invalid argument"),
+            "serial port P does not accept these line settings; pseudo-terminals "
+            "(socat, /dev/pts/N) only take parity N",
+        ),
         # Windows: only text, localized, with the Windows error code last.
         (
             serial.SerialException(

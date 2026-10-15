@@ -7,6 +7,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import serial
 from serial.tools import list_ports
@@ -71,18 +72,21 @@ def _natural_key(device: str) -> tuple[str, int]:
     return device[:-digits], int(device[-digits:])
 
 
-def open_error(port: str) -> str:
+def open_error(port: str, **line: Any) -> str:
     """Why ``port`` cannot be opened, in words a user can act on.
 
-    Opens and closes the port at once, so call it only after a connection
-    attempt failed (the port is not ours at that point). Blocking.
+    ``line`` holds pyserial's line settings (baudrate, bytesize, parity, stopbits):
+    a port can exist and still refuse them. Opens and closes the port at once, so
+    call it only after a connection attempt failed (the port is not ours at that
+    point). Blocking.
     """
     try:
-        serial.Serial(port).close()
-    except serial.SerialException as exc:
-        return describe_open_error(port, exc)
-    except (OSError, ValueError) as exc:
+        serial.Serial(port, **line).close()
+    except ValueError as exc:
         return f"cannot open serial port {port}: {exc}"
+    # SerialException, OSError, and termios.error when the settings are refused.
+    except Exception as exc:
+        return describe_open_error(port, exc)
     return f"serial port {port} opens, but the connection failed"
 
 
@@ -115,6 +119,11 @@ def describe_open_error(port: str, exc: Exception) -> str:
         return (
             f"permission denied on serial port {port}; add the user to the 'dialout' group "
             "(log in again afterwards), or in Docker pass it with --device"
+        )
+    if code == errno.EINVAL:
+        return (
+            f"serial port {port} does not accept these line settings; pseudo-terminals "
+            "(socat, /dev/pts/N) only take parity N"
         )
     if winerror == WIN_DEVICE_NOT_CONNECTED:
         return f"serial port {port}: the device is not connected"

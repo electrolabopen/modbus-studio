@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 import pytest
@@ -162,3 +163,20 @@ async def test_manager_rejects_duplicates(manager: ConnectionManager):
         manager.add(TcpConnection(id="x", host="127.0.0.1"))
     with pytest.raises(KeyError):
         manager.get("missing")
+
+
+async def test_cancelled_request_does_not_answer_the_next_one(any_conn, traffic: TrafficLog):
+    """A request cancelled after it was sent still gets its reply; the next request
+    must not take it as its own (RTU frames have no transaction id)."""
+    sent = asyncio.Event()
+    traffic.subscribe(lambda e: e.direction is Direction.TX and sent.set())
+    for _ in range(5):
+        sent.clear()
+        pending = asyncio.create_task(any_conn.read(HR, 1, 24, 2))
+        await sent.wait()
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        regs = await any_conn.read(HR, 1, 26, 2)
+        assert decode(regs, DataType.UINT32, ByteOrder.CDAB) == CONST_UINT32
+    assert any_conn.stats.timeouts == 0
