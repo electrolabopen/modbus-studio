@@ -75,6 +75,7 @@ class PollTask:
         self.last_result: PollResult | None = None
         self._on_result = on_result
         self._task: asyncio.Task[None] | None = None
+        self._stopping = False
 
     @property
     def running(self) -> bool:
@@ -113,7 +114,8 @@ class PollTask:
     async def _run(self) -> None:
         loop = asyncio.get_running_loop()
         next_at = loop.time()
-        while True:
+        # The flag, not just cancellation, ends the loop: see stop().
+        while not self._stopping:
             result = await self.poll_once()
             interval = self.definition.scan_rate_ms / 1000
             if result.error_kind is ErrorKind.DISCONNECTED:
@@ -126,19 +128,29 @@ class PollTask:
 
     def start(self) -> None:
         if not self.running:
+            self._stopping = False
             self._task = asyncio.create_task(self._run(), name=f"poll:{self.definition.id}")
 
     def cancel(self) -> None:
         """Request cancellation without waiting; ``stop()`` waits for it."""
+        self._stopping = True
         if self._task is not None:
             self._task.cancel()
 
     async def stop(self) -> None:
-        if self._task is not None:
-            self._task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._task
-            self._task = None
+        task = self._task
+        if task is None:
+            return
+        self._stopping = True
+        # Before Python 3.12, asyncio.wait_for (pymodbus awaits every response with
+        # it) can swallow a cancellation that races with the response, and the loop
+        # would carry on. Keep cancelling until the task has really finished.
+        while not task.done():
+            task.cancel()
+            await asyncio.wait({task}, timeout=0.1)
+        with contextlib.suppress(asyncio.CancelledError):
+            task.result()
+        self._task = None
 
     def reset_stats(self) -> None:
         self.stats = PollStats()

@@ -16,6 +16,7 @@ jobs:
   backend:
     name: backend (py${{ matrix.python }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -42,6 +43,7 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: frontend
@@ -59,6 +61,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: [backend, frontend]
     steps:
       - uses: actions/checkout@v4

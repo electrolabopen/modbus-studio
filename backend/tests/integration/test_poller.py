@@ -88,3 +88,23 @@ async def test_update_restarts_with_new_definition(manager, tcp):
     )
     assert len((await task.poll_once()).values) == 5
     assert polls.get("w") is task
+
+
+async def test_stop_survives_a_swallowed_cancellation(manager, tcp):
+    """On Python < 3.12 asyncio.wait_for (used by pymodbus for every response) can
+    swallow a cancellation that races with the response. Stopping must still work."""
+    swallowed: list[bool] = []
+
+    async def read(*args: object, **kwargs: object) -> list[int]:
+        try:
+            await asyncio.sleep(0.5)
+        except asyncio.CancelledError:
+            swallowed.append(True)  # what wait_for does when the response wins the race
+        return [0]
+
+    tcp.read = read
+    polls = PollManager(manager)
+    polls.add(PollDefinition(id="s", connection_id="tcp", quantity=1, scan_rate_ms=10))
+    await asyncio.sleep(0.05)
+    await asyncio.wait_for(polls.stop_all(), timeout=2)
+    assert swallowed
