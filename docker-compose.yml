@@ -16,12 +16,27 @@
 # Ports are published on 127.0.0.1 only. To reach the UI from other machines
 # (e.g. a gateway on the plant network), change the binding AND set
 # MODBUS_STUDIO_TOKEN.
+#
+# Optional profile "influxdb": InfluxDB 2 and Grafana, with the exporter configured
+# and a dashboard for the simulator (see docs/influxdb.md):
+#
+#   docker compose --profile influxdb up --build
+#   Grafana http://127.0.0.1:3000 (admin / modbus-studio), InfluxDB http://127.0.0.1:8086
+#
+# The credentials below are development defaults; set INFLUXDB_TOKEN,
+# INFLUXDB_PASSWORD and GRAFANA_PASSWORD (e.g. in a .env file) before exposing
+# anything, and GRAFANA_ANONYMOUS=false to require a login in Grafana.
 
 x-image: &image
   build:
     context: .
     dockerfile: docker/Dockerfile
   image: modbus-studio:dev
+
+x-influxdb-env: &influxdb-env
+  INFLUXDB_ORG: modbus-studio
+  INFLUXDB_BUCKET: modbus
+  INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-modbus-studio-dev-token}
 
 services:
   modbus-studio:
@@ -69,5 +84,86 @@ services:
       start_interval: 1s
     restart: unless-stopped
 
+  # -- profile "influxdb" --------------------------------------------------------
+
+  influxdb:
+    image: influxdb:2.7.11
+    profiles: [influxdb]
+    environment:
+      # First start only: create the org, the bucket and the API token.
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD:-modbus-studio}
+      DOCKER_INFLUXDB_INIT_ORG: modbus-studio
+      DOCKER_INFLUXDB_INIT_BUCKET: modbus
+      DOCKER_INFLUXDB_INIT_RETENTION: 30d
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN:-modbus-studio-dev-token}
+    ports:
+      - "127.0.0.1:8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 30s
+      timeout: 3s
+      start_period: 30s
+      start_interval: 1s
+    restart: unless-stopped
+
+  # Points modbus-studio's exporter at InfluxDB, once (an exporter already set up,
+  # e.g. from the UI, is left alone).
+  influxdb-setup:
+    <<: *image
+    profiles: [influxdb]
+    command: ["python", "/etc/modbus-studio/configure_influxdb.py"]
+    environment:
+      <<: *influxdb-env
+      MODBUS_STUDIO_URL: http://modbus-studio:8000
+      MODBUS_STUDIO_TOKEN: ${MODBUS_STUDIO_TOKEN:-}
+    volumes:
+      - ./docker/configure_influxdb.py:/etc/modbus-studio/configure_influxdb.py:ro
+    depends_on:
+      modbus-studio:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    restart: "no"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    profiles: [influxdb]
+    environment:
+      <<: *influxdb-env
+      # First start only (when the grafana-data volume is created); see docs/influxdb.md.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-modbus-studio}
+      # Dashboards open without logging in (read-only); log in as admin to edit them.
+      # GRAFANA_ANONYMOUS=false requires a login.
+      GF_AUTH_ANONYMOUS_ENABLED: ${GRAFANA_ANONYMOUS:-true}
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/modbus-studio-simulator.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      # Also lets `docker compose up --wait` accept that the setup container exits.
+      influxdb-setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 3s
+      start_period: 30s
+      start_interval: 1s
+    restart: unless-stopped
+
 volumes:
   modbus-studio-data:
+  influxdb-data:
+  grafana-data:

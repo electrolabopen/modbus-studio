@@ -45,11 +45,42 @@ export function Sidebar() {
             <li key={config.id} className="conn">
               <span className={`dot dot-${state}`} title={state} />
               <div className="conn-text">
-                <div className="conn-name">{label}</div>
+                <div className="conn-head">
+                  <div className="conn-name">{label}</div>
+                  <button
+                    className={`btn btn-small${config.read_only ? ' btn-locked' : ''}`}
+                    aria-pressed={!!config.read_only}
+                    aria-label={`Read-only ${label}`}
+                    title={
+                      config.read_only
+                        ? 'Read-only: writes are blocked. Click to allow writes.'
+                        : 'Writes allowed. Click to make this connection read-only.'
+                    }
+                    onClick={() => toggleReadOnly(view)}
+                  >
+                    {config.read_only ? 'RO' : 'RW'}
+                  </button>
+                  <button
+                    className="btn btn-small"
+                    aria-label={`Delete connection ${label}`}
+                    onClick={() => remove(config.id)}
+                  >
+                    ✕
+                  </button>
+                </div>
                 <div className="muted small mono">
-                  {config.type === 'rtu'
-                    ? `${config.serial_port} · ${config.baudrate} ${config.bytesize}${config.parity}${config.stopbits}`
-                    : `${config.host}:${config.port}`}
+                  {config.type === 'rtu' ? (
+                    <>
+                      {config.serial_port} ·{' '}
+                      <span className="nowrap">
+                        {config.baudrate} {config.bytesize}
+                        {config.parity}
+                        {config.stopbits}
+                      </span>
+                    </>
+                  ) : (
+                    `${config.host}:${config.port}`
+                  )}
                   {config.type === 'rtu_over_tcp' && ' · RTU/TCP'}
                 </div>
                 <div className="muted small">
@@ -59,26 +90,6 @@ export function Sidebar() {
                   <div className="conn-error small">{last_error}</div>
                 )}
               </div>
-              <button
-                className={`btn btn-small${config.read_only ? ' btn-locked' : ''}`}
-                aria-pressed={!!config.read_only}
-                aria-label={`Read-only ${label}`}
-                title={
-                  config.read_only
-                    ? 'Read-only: writes are blocked. Click to allow writes.'
-                    : 'Writes allowed. Click to make this connection read-only.'
-                }
-                onClick={() => toggleReadOnly(view)}
-              >
-                {config.read_only ? 'RO' : 'RW'}
-              </button>
-              <button
-                className="btn btn-small"
-                aria-label={`Delete connection ${label}`}
-                onClick={() => remove(config.id)}
-              >
-                ✕
-              </button>
             </li>
           )
         })}

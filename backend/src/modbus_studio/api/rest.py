@@ -21,6 +21,7 @@ from ..core.studio import (
     Studio,
 )
 from ..models.connection import ConnectionConfig
+from ..models.exporters import InfluxDBConfig, InfluxDBView
 from ..models.poll import PollDefinition
 from ..models.views import (
     ConnectionView,
@@ -248,9 +249,32 @@ async def import_register_map(
     return view
 
 
-@router.get("/workspace", tags=["workspace"], summary="Export connections and windows")
+@router.get(
+    "/workspace",
+    tags=["workspace"],
+    summary="Export connections, windows and exporter settings",
+    description="Exporter tokens are left out; importing the file keeps the current ones.",
+)
 async def export_workspace(studio: StudioDep) -> Workspace:
-    return studio.export_workspace()
+    return studio.export_workspace(secrets=False)
+
+
+@router.get("/exporters/influxdb", tags=["exporters"], summary="InfluxDB exporter settings")
+async def get_influxdb(studio: StudioDep) -> InfluxDBView:
+    """The settings (without the token) and the export status: state, last error,
+    points sent, writes, errors, dropped and pending points."""
+    return studio.influxdb_view()
+
+
+@router.put(
+    "/exporters/influxdb",
+    tags=["exporters"],
+    summary="Change the InfluxDB exporter settings",
+    description="Omit `token` (or send null) to keep the current token; send an empty "
+    "string to remove it. Applied at once and saved with the workspace.",
+)
+async def put_influxdb(config: InfluxDBConfig, studio: StudioDep) -> InfluxDBView:
+    return studio.set_influxdb(config)
 
 
 @router.post("/workspace", tags=["workspace"], summary="Import a workspace file")

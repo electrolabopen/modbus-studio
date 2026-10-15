@@ -3,6 +3,21 @@
 ## [Unreleased]
 
 ### Added
+- InfluxDB 2.x exporter: every polled value is written as a point (measurement = window,
+  tags connection, device, alias, address and unit, field `value` in engineering units),
+  in batches through the HTTP API. Configured with `GET`/`PUT /api/exporters/influxdb`
+  and saved with the workspace; the token is never returned and **Export workspace**
+  leaves it out. Status with state, last error, points sent, writes, errors, dropped and
+  pending points. InfluxDB being down or slow never delays polling: points wait in a
+  bounded buffer and are written when it is back. See `docs/influxdb.md`.
+- docker compose profile `influxdb`: InfluxDB 2.7 and Grafana 11 with the exporter set
+  up and a dashboard for the simulator. CI checks the values arrive in InfluxDB. Ports
+  published on 127.0.0.1 only; `GRAFANA_PASSWORD` and `GRAFANA_ANONYMOUS` set Grafana's
+  admin password and anonymous read-only access.
+- README: screenshots (polling window with chart, traffic monitor, Grafana) and a
+  Features section split into what works now and what is in development.
+- The compose demo window now covers the whole simulator map (addresses 0–27) with its
+  aliases, data types and units.
 - The simulator serves RTU on a serial port: `modbus-studio-sim --serial PORT` with
   `--baudrate`, `--bytesize`, `--parity` (default E) and `--stopbits`; `--tcp-port 0` /
   `--rtu-tcp-port 0` turn off the TCP servers. A port that does not open is reported
@@ -90,6 +105,8 @@
   out, with a hint when `127.0.0.1` is used inside a container. Shown in the sidebar.
 
 ### Fixed
+- The sidebar no longer splits an RTU connection's line settings (`COM21 · 19200 8E1`)
+  over two lines: the RW and ✕ buttons moved next to the name.
 - RTU and RTU over TCP: after a request was cancelled in flight (stopping or editing a
   window), its late reply could be taken as the reply to the next request on the
   connection, showing another address's values. The next request now waits for that

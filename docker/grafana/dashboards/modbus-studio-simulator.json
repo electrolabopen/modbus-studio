@@ -1,0 +1,285 @@
+{
+  "uid": "modbus-studio-simulator",
+  "title": "modbus-studio: simulator",
+  "description": "Values exported by modbus-studio to InfluxDB from the bundled simulator.",
+  "tags": [
+    "modbus-studio"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "bucket",
+        "type": "constant",
+        "query": "modbus",
+        "hide": 2
+      },
+      {
+        "name": "window",
+        "label": "Window",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "modbus-studio-influxdb"
+        },
+        "query": "import \"influxdata/influxdb/schema\"\nschema.measurements(bucket: \"${bucket}\")",
+        "refresh": 2,
+        "current": {
+          "text": "Simulator",
+          "value": "Simulator"
+        },
+        "description": "The measurement: the polling window's name."
+      },
+      {
+        "name": "alias",
+        "label": "Alias",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "modbus-studio-influxdb"
+        },
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"${bucket}\", tag: \"alias\",\n  predicate: (r) => r._measurement == \"${window}\", start: -1d)",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": [
+            "counter"
+          ],
+          "value": [
+            "counter"
+          ]
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Sine wave in five encodings",
+      "description": "The same value as float32 in byte orders ABCD, CDAB, BADC and DCBA and as float64: the lines must overlap. One that does not means a wrong byte order.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "modbus-studio-influxdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "modbus-studio-influxdb"
+          },
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"${window}\" and r._field == \"value\")\n  |> filter(fn: (r) => r.alias =~ /^sine/)\n  |> keep(columns: [\"_time\", \"_value\", \"alias\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.alias}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Constants",
+      "description": "-123456789 (int32, ABCD) and 3000000000 (uint32, CDAB).",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "modbus-studio-influxdb"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "modbus-studio-influxdb"
+          },
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"${window}\" and r._field == \"value\")\n  |> filter(fn: (r) => r.alias == \"int32 constant\" or r.alias == \"uint32 constant\")\n  |> keep(columns: [\"_time\", \"_value\", \"alias\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.alias}",
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Temperature",
+      "description": "int16 register x10, exported with scale 0.1.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "modbus-studio-influxdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "modbus-studio-influxdb"
+          },
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"${window}\" and r._field == \"value\")\n  |> filter(fn: (r) => r.alias == \"temperature\")\n  |> keep(columns: [\"_time\", \"_value\", \"alias\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.alias}",
+          "unit": "celsius"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Sawtooth",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "modbus-studio-influxdb"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "modbus-studio-influxdb"
+          },
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"${window}\" and r._field == \"value\")\n  |> filter(fn: (r) => r.alias == \"sawtooth\")\n  |> keep(columns: [\"_time\", \"_value\", \"alias\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.alias}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Selected values",
+      "description": "Any value of the window chosen above; pick them in the alias list.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "modbus-studio-influxdb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "modbus-studio-influxdb"
+          },
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"${window}\" and r._field == \"value\")\n  |> filter(fn: (r) => contains(value: r.alias, set: ${alias:json}))\n  |> keep(columns: [\"_time\", \"_value\", \"alias\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.alias}"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    }
+  ]
+}

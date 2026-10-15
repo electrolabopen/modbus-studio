@@ -150,9 +150,22 @@ select:focus,
   overflow-wrap: anywhere;
 }
 
+/* Name and buttons on one row, so the details below get the full width. */
+.conn-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .conn-name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nowrap {
   white-space: nowrap;
 }
 

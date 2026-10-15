@@ -92,12 +92,16 @@ jobs:
         run: |
           curl -fsS http://127.0.0.1:8000/ | grep -q "<title>modbus-studio</title>"
           nc -z 127.0.0.1 5020 && nc -z 127.0.0.1 5021
+      - name: "Smoke test: export to InfluxDB (compose profile influxdb)"
+        run: |
+          docker compose --profile influxdb up -d --wait --wait-timeout 180
+          python3 docker/smoke_test.py influxdb
       - name: Stop stack (the simulator must exit on SIGTERM, not be killed)
         run: |
           docker compose stop --timeout 5
           docker compose ps -a --format '{{.Service}} {{.ExitCode}}'
           test "$(docker compose ps -a --format '{{.ExitCode}}' simulator)" = 0
       - if: failure()
-        run: docker compose logs
+        run: docker compose --profile influxdb logs
       - if: always()
-        run: docker compose down --volumes
+        run: docker compose --profile influxdb down --volumes

@@ -8,13 +8,19 @@
     docker compose kill modbus-studio && docker compose up -d --wait
     python docker/smoke_test.py persist-check
 
+    # export to InfluxDB (profile "influxdb"):
+    docker compose --profile influxdb up -d --wait
+    python docker/smoke_test.py influxdb
+
 Checks, through the app's REST API on the host:
   1. the preloaded demo window (docker/demo-workspace.json) polls the simulator
      by its service name and gets valid responses;
   2. the simulator also answers under its network alias and over RTU over TCP;
   3. a connection to 127.0.0.1 from inside the container fails with an
      explanation instead of a bare "not connected";
-  4. (persist-*) connections and windows survive a restart of the app container.
+  4. (persist-*) connections and windows survive a restart of the app container;
+  5. (influxdb) the exporter set up by the profile writes the demo window's values,
+     with their tags, into InfluxDB.
 
 Standard library only, so it runs on any CI runner or workstation with Python 3.
 """
@@ -33,6 +39,8 @@ from typing import Any
 BASE = os.environ.get("MODBUS_STUDIO_URL", "http://127.0.0.1:8000").rstrip("/")
 TOKEN = os.environ.get("MODBUS_STUDIO_TOKEN") or None
 TIMEOUT_S = float(os.environ.get("SMOKE_TIMEOUT_S", "60"))
+INFLUXDB_URL = os.environ.get("INFLUXDB_URL", "http://127.0.0.1:8086").rstrip("/")
+INFLUXDB_TOKEN = os.environ.get("INFLUXDB_TOKEN", "modbus-studio-dev-token")
 
 
 def api(method: str, path: str, body: Any = None) -> Any:
@@ -153,10 +161,48 @@ def persist_check() -> None:
     api("DELETE", f"/api/connections/{PERSIST_ID}?cascade=true")
 
 
+def flux(query: str) -> list[dict[str, str]]:
+    """Run a Flux query on the compose InfluxDB; rows of the CSV answer."""
+    req = urllib.request.Request(
+        f"{INFLUXDB_URL}/api/v2/query?org=modbus-studio", data=query.encode(), method="POST"
+    )
+    req.add_header("Authorization", f"Token {INFLUXDB_TOKEN}")
+    req.add_header("Content-Type", "application/vnd.flux")
+    req.add_header("Accept", "application/csv")
+    with urllib.request.urlopen(req, timeout=10) as res:
+        lines = [line for line in res.read().decode().splitlines() if line.strip()]
+    if not lines:
+        return []
+    header = lines[0].split(",")
+    return [dict(zip(header, line.split(","))) for line in lines[1:]]
+
+
+def influxdb() -> None:
+    wait_until(
+        "the exporter writes to InfluxDB",
+        lambda: (s := api("GET", "/api/exporters/influxdb")["status"])["state"] == "ok"
+        and s["points_sent"] > 0,
+    )
+    rows = wait_until(
+        "the demo window's temperature is in InfluxDB",
+        lambda: flux(
+            'from(bucket: "modbus") |> range(start: -5m)'
+            ' |> filter(fn: (r) => r._measurement == "Simulator" and r.alias == "temperature")'
+            " |> last()"
+        ),
+    )
+    row = rows[0]
+    assert row["connection"] == "Simulator (compose)" and row["device"] == "1", row
+    assert row["unit"] == "°C" and row["_field"] == "value", row
+    # Exported in engineering units (scale 0.1), not as the raw register.
+    assert -50.0 <= float(row["_value"]) <= 150.0, row["_value"]
+
+
 STEPS: dict[str, Callable[[], None]] = {
     "connectivity": connectivity,
     "persist-write": persist_write,
     "persist-check": persist_check,
+    "influxdb": influxdb,
 }
 
 

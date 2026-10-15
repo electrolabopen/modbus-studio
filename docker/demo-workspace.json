@@ -13,13 +13,76 @@
   "polls": [
     {
       "id": "demo",
-      "name": "Demo: holding registers 0-9",
+      "name": "Simulator",
       "connection_id": "simulator",
       "device_id": 1,
       "function": 3,
       "address": 0,
-      "quantity": 10,
-      "scan_rate_ms": 1000
+      "quantity": 28,
+      "scan_rate_ms": 1000,
+      "formats": {
+        "0": {
+          "dtype": "uint16",
+          "order": "ABCD",
+          "scale": 1.0,
+          "alias": "counter"
+        },
+        "1": {
+          "dtype": "uint16",
+          "order": "ABCD",
+          "scale": 1.0,
+          "alias": "sawtooth"
+        },
+        "2": {
+          "dtype": "int16",
+          "order": "ABCD",
+          "scale": 0.1,
+          "alias": "temperature",
+          "unit": "°C"
+        },
+        "10": {
+          "dtype": "float32",
+          "order": "ABCD",
+          "scale": 1.0,
+          "alias": "sine ABCD"
+        },
+        "12": {
+          "dtype": "float32",
+          "order": "CDAB",
+          "scale": 1.0,
+          "alias": "sine CDAB"
+        },
+        "14": {
+          "dtype": "float32",
+          "order": "BADC",
+          "scale": 1.0,
+          "alias": "sine BADC"
+        },
+        "16": {
+          "dtype": "float32",
+          "order": "DCBA",
+          "scale": 1.0,
+          "alias": "sine DCBA"
+        },
+        "20": {
+          "dtype": "float64",
+          "order": "ABCD",
+          "scale": 1.0,
+          "alias": "sine float64"
+        },
+        "24": {
+          "dtype": "int32",
+          "order": "ABCD",
+          "scale": 1.0,
+          "alias": "int32 constant"
+        },
+        "26": {
+          "dtype": "uint32",
+          "order": "CDAB",
+          "scale": 1.0,
+          "alias": "uint32 constant"
+        }
+      }
     }
   ]
 }

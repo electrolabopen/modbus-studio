@@ -10,36 +10,55 @@ registers, and shows every frame on the wire. It is written from scratch from th
 Modbus specification. Run it on your laptop, or on a gateway or Raspberry Pi on the plant
 network and open it from any browser.
 
-> **Status: pre-alpha.** The Modbus core, the REST API and the WebSocket are done and
-> tested. The UI creates connections and polling windows, shows live values and writes
-> coils and registers with a confirmation dialog. See the [roadmap](docs/ROADMAP.md).
+> **Status: pre-alpha.** Everything under [Working now](#working-now) is done and tested;
+> MQTT and the 0.1 release are [in development](#in-development). See the
+> [roadmap](docs/ROADMAP.md).
 
 ## Features
 
-| | Feature | Status |
-|---|---|---|
-| ✅ | Modbus TCP, RTU over TCP | core done |
-| ✅ | Modbus RTU (serial): port discovery, line settings in the UI, [Linux guide](docs/rtu-linux.md) | tested over virtual ports; a physical adapter is not validated yet |
-| ✅ | Read FC01–FC04, write FC05/06/15/16 | core done |
-| ✅ | signed, unsigned, hex, binary, 32-bit long/float, 64-bit long/double | core done |
-| ✅ | Byte orders ABCD, CDAB, BADC, DCBA | core done |
-| ✅ | Scale and unit per register (engineering values) | core done |
-| ✅ | Raw TX/RX frame capture, error counters per window | core done |
-| ✅ | Optional API token, binds to 127.0.0.1 by default | done |
-| 🟡 | Multiple polling windows in the UI, each with its own scan rate | basic version done |
-| ✅ | Write by double-clicking a cell, with a confirmation dialog and a write log | done |
-| ✅ | Read-only connections | done |
-| ✅ | Per-cell and per-range formats, aliases edited in the table | done |
-| ✅ | JSON workspaces (autosave, import, export), CSV register maps | done |
-| ✅ | Traffic monitor with filters, pause, counters and CSV export | done |
-| ✅ | Real-time chart of selected registers (uPlot), pause, zoom, CSV export | done |
-| ⏳ | Export to InfluxDB, publish over MQTT | phase 7 |
-| ✅ | REST API + WebSocket (the UI uses the same API) | done, OpenAPI at `/docs` |
-| ⏳ | `pip install`, multi-arch Docker image (amd64/arm64) | phase 8 |
+### Working now
+
+| Area | What works |
+|---|---|
+| Protocols | Modbus TCP, RTU over TCP and RTU on a serial port: port discovery and line settings in the UI ([Linux guide](docs/rtu-linux.md)) |
+| Functions | Read FC01–FC04, write FC05/06/15/16 |
+| Decoding | signed, unsigned, hex, binary, 32-bit long/float, 64-bit long/double; byte orders ABCD, CDAB, BADC, DCBA; scale and unit per register (engineering values) |
+| Polling windows | Several windows, each with its own connection, slave ID, function and scan rate; Tx/Err counters |
+| Formats and aliases | Per-cell and per-range formats, aliases edited in the table, CSV register maps |
+| Writes | Double-click a cell, confirmation dialog, values in engineering units, write log; read-only connections |
+| Workspaces | JSON workspaces with autosave, import and export |
+| Traffic monitor | Raw TX/RX frames with filters, pause, counters and CSV export |
+| Chart | Real-time chart of selected registers (uPlot), pause, zoom, CSV export |
+| InfluxDB | Export to InfluxDB 2.x, compose profile with Grafana and a dashboard for the simulator ([guide](docs/influxdb.md)) |
+| API | REST API + WebSocket, the same API the UI uses; OpenAPI at `/docs` |
+| Security | Binds to 127.0.0.1 by default, optional API token |
+| Docker | `docker compose up` with the bundled simulator |
+
+### In development
+
+| Feature | Where |
+|---|---|
+| Publish values over MQTT, compose profile with Mosquitto | phase 7, part 2 |
+| InfluxDB and MQTT settings and status in the UI (for now, InfluxDB is set up through the API) | phase 7, part 3 |
+| RTU with a physical USB-RS485 adapter: tested only over virtual ports so far | phase 6, part 3 |
+| **Release 0.1**: `pip install modbus-studio`, multi-arch image (amd64/arm64) on GHCR, docs and a GIF | phase 8 |
+
+See the [roadmap](docs/ROADMAP.md) for the phases and what each one has to pass.
 
 ## Screenshots
 
-Coming with the first UI milestone (phase 3).
+A polling window with the simulator's register map applied, and the real-time chart of
+two of its registers:
+
+![Polling window and chart](docs/screenshots/window-chart.jpg)
+
+The traffic monitor, with every request and response in hex:
+
+![Traffic monitor](docs/screenshots/window-traffic.jpg)
+
+The same values in Grafana, exported to InfluxDB (`docker compose --profile influxdb up`):
+
+![Grafana dashboard](docs/screenshots/grafana-dashboard.jpg)
 
 ## Quick start
 
@@ -75,6 +94,16 @@ docker compose up -d --build --wait
 python docker/smoke_test.py      # app -> simulator through the compose network
 python docker/smoke_test.py persist-write && docker compose restart modbus-studio   && python docker/smoke_test.py persist-check   # the workspace survives a restart
 ```
+
+### With InfluxDB and Grafana
+
+```bash
+docker compose --profile influxdb up --build
+```
+
+adds InfluxDB 2 and Grafana: polled values are exported to InfluxDB and Grafana
+(<http://127.0.0.1:3000>) opens on a dashboard for the simulator. See
+[`docs/influxdb.md`](docs/influxdb.md).
 
 ### Docker image
 

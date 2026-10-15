@@ -1,0 +1,15 @@
+# InfluxDB of the compose profile "influxdb", queried with Flux.
+apiVersion: 1
+datasources:
+  - name: InfluxDB (modbus-studio)
+    uid: modbus-studio-influxdb
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    isDefault: true
+    jsonData:
+      version: Flux
+      organization: ${INFLUXDB_ORG}
+      defaultBucket: ${INFLUXDB_BUCKET}
+    secureJsonData:
+      token: ${INFLUXDB_TOKEN}

@@ -10,7 +10,15 @@ from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from typing import Any
 
+import httpx
+
 from ..models.connection import ConnectionConfig, RtuConnection, TcpConnection
+from ..models.exporters import (
+    ExportersConfig,
+    InfluxDBConfig,
+    InfluxDBConfigView,
+    InfluxDBView,
+)
 from ..models.format import RegisterFormatModel
 from ..models.poll import PollDefinition, ReadFunction
 from ..models.views import (
@@ -43,6 +51,7 @@ from .connection import (
     default_client_factory,
 )
 from .frames import FrameInfo, describe
+from .influx import InfluxExporter, Sample
 from .poller import PollManager, PollResult, PollTask
 from .registermap import MapError, MapRow, RegisterMapError, WindowFit, parse_register_map
 from .serialports import list_serial_ports
@@ -80,11 +89,14 @@ class Studio:
         traffic_buffer: int = 5000,
         client_factory: ClientFactory = default_client_factory,
         write_log: WriteLog | None = None,
+        influx_transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self.traffic = TrafficLog(maxlen=traffic_buffer)
         self.write_log = write_log or WriteLog()
         self.connections = ConnectionManager(self.traffic, client_factory)
         self.polls = PollManager(self.connections)
+        self.influx = InfluxExporter(influx_transport)
+        self.polls.subscribe(self._export)
         self._change_listeners: list[Callable[[], None]] = []
 
     def subscribe_changes(self, listener: Callable[[], None]) -> None:
@@ -95,15 +107,19 @@ class Studio:
         for listener in self._change_listeners:
             listener()
 
-    def export_workspace(self) -> Workspace:
+    def export_workspace(self, secrets: bool = True) -> Workspace:
+        """The session as a workspace; ``secrets=False`` leaves out exporter tokens."""
+        exporters = ExportersConfig(influxdb=self.influx.config)
         return Workspace(
             connections=[c.config for c in self.connections.all()],
             polls=[t.definition for t in self.polls.all()],
+            exporters=exporters if secrets else exporters.without_secrets(),
         )
 
     async def close(self) -> None:
         await self.polls.stop_all()
         await self.connections.close_all()
+        await self.influx.close()
 
     # -- connections -------------------------------------------------------
 
@@ -122,8 +138,14 @@ class Studio:
             last_error=conn.last_error,
         )
 
-    def load_workspace(self, workspace: Workspace) -> None:
-        """Add a workspace's connections and windows to the current session."""
+    def load_workspace(self, workspace: Workspace, exporters: bool = True) -> None:
+        """Add a workspace's connections and windows to the current session.
+
+        With ``exporters`` its exporter settings replace the current ones (a merge
+        keeps the session's own).
+        """
+        if exporters:
+            self.set_influxdb(workspace.exporters.influxdb)
         for config in workspace.connections:
             self.add_connection(config)
         for definition in workspace.polls:
@@ -147,7 +169,7 @@ class Studio:
                     f"already in use: {', '.join(sorted(taken))}; import with mode=replace "
                     "or rename them in the file"
                 )
-        self.load_workspace(workspace)
+        self.load_workspace(workspace, exporters=replace)
 
     def _connection_ids(self) -> set[str]:
         return {c.id for c in self.connections.all()}
@@ -570,6 +592,50 @@ class Studio:
             values=values,
         )
         return plan
+
+    # -- exporters -----------------------------------------------------------
+
+    def influxdb_view(self) -> InfluxDBView:
+        return InfluxDBView(
+            config=InfluxDBConfigView.of(self.influx.config),
+            status=self.influx.status.model_copy(),
+        )
+
+    def set_influxdb(self, config: InfluxDBConfig) -> InfluxDBView:
+        """Apply InfluxDB settings. A missing token keeps the current one; an empty
+        string removes it."""
+        if config.token is None:
+            config = config.model_copy(update={"token": self.influx.config.token})
+        elif config.token == "":
+            config = config.model_copy(update={"token": None})
+        self.influx.configure(config)
+        self._changed()
+        return self.influxdb_view()
+
+    def _export(self, result: PollResult) -> None:
+        """Hand a poll result to the exporters. Runs inside the poll loop: no I/O."""
+        if not self.influx.active or result.values is None:
+            return
+        try:
+            task = self.polls.get(result.poll_id)
+            conn = self.connections.get(task.definition.connection_id)
+        except KeyError:  # removed while the request was in flight
+            return
+        d = task.definition
+        self.influx.offer(
+            Sample(
+                window=d.name or d.id,
+                connection=conn.config.name or conn.id,
+                device=d.device_id,
+                address=cell.address,
+                alias=cell.alias,
+                unit=cell.unit,
+                value=cell.value,
+                timestamp=result.timestamp,
+            )
+            for cell in self.poll_data(task, result).cells
+            if cell.value is not None and cell.covered_by is None and cell.error is None
+        )
 
     # -- serial ports --------------------------------------------------------
 
