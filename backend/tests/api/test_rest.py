@@ -196,3 +196,28 @@ def test_token_protects_rest(make_client):
     client = make_client(token="t0k")
     assert client.get("/api/polls").status_code == 401
     assert client.get("/api/polls", headers={"Authorization": "Bearer t0k"}).status_code == 200
+
+
+def test_serial_ports_show_which_connections_use_them(client, monkeypatch):
+    from modbus_studio.core import serialports, studio
+
+    ports = [
+        serialports.SerialPort(
+            "/dev/ttyUSB0",
+            "FT232R USB UART",
+            "FTDI",
+            "A50285BI",
+            1027,
+            24577,
+            "/dev/serial/by-id/usb-FTDI_A50285BI-if00-port0",
+        ),
+        serialports.SerialPort("/dev/ttyS0", "", None, None, None, None, None),
+    ]
+    monkeypatch.setattr(studio, "list_serial_ports", lambda: ports)
+    body = {"type": "rtu", "serial_port": "/dev/serial/by-id/usb-FTDI_A50285BI-if00-port0"}
+    assert client.post("/api/connections", json={**body, "id": "line1"}).status_code == 201
+
+    listed = client.get("/api/serial-ports").json()
+    assert [p["device"] for p in listed] == ["/dev/ttyUSB0", "/dev/ttyS0"]
+    assert listed[0]["used_by"] == ["line1"] and listed[0]["vid"] == 1027
+    assert listed[1]["used_by"] == []

@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Added
+- Modbus RTU connections from the UI: **+ Connection** → "Modbus RTU (serial port)" with
+  baud rate, data bits, parity and stop bits (default 19200 8E1). The dialog lists the
+  serial ports of the machine running the server (`GET /api/serial-ports`) with
+  description, manufacturer, VID:PID and serial number; a click fills the port, using the
+  `/dev/serial/by-id/…` name on Linux so it survives replugging. Ports already used by a
+  connection are marked. The sidebar shows the line settings, e.g. `COM3 · 19200 8E1`.
+- A serial port that does not open says why: not found, in use by another program,
+  permission denied (with the `dialout` / `--device` hint) or device not connected,
+  including on non-English Windows.
 - Importing a CSV register map into a window that is too small offers **Grow window and
   apply**, which widens the window to the smallest range that holds every row and applies
   the map in one step (`POST /api/polls/{id}/register-map?fit=true`; a failed import

@@ -53,6 +53,21 @@ class ConnectionView(BaseModel):
     last_error: str | None = None
 
 
+class SerialPortView(BaseModel):
+    """A serial port the OS reports, for picking one in an RTU connection."""
+
+    device: str
+    description: str = ""
+    manufacturer: str | None = None
+    serial_number: str | None = None
+    vid: int | None = None
+    pid: int | None = None
+    # /dev/serial/by-id/... (Linux, USB adapters): survives replugging, unlike ttyUSB0.
+    stable_path: str | None = None
+    # Connections configured with this port (by device name or stable path).
+    used_by: list[str] = []
+
+
 class TrafficEntryView(BaseModel):
     seq: int
     timestamp: float

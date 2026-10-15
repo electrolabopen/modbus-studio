@@ -139,6 +139,20 @@ export interface TrafficEntry {
   error: string | null
 }
 
+/** A serial port of the machine running the server. */
+export interface SerialPort {
+  device: string
+  description: string
+  manufacturer: string | null
+  serial_number: string | null
+  vid: number | null
+  pid: number | null
+  /** /dev/serial/by-id/... (Linux, USB): keeps working when adapters are replugged. */
+  stable_path: string | null
+  /** Ids of the connections configured with this port. */
+  used_by: string[]
+}
+
 /** Connections and windows of a session, as exported to / imported from JSON. */
 export interface Workspace {
   version: 1

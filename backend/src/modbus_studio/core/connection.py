@@ -27,6 +27,7 @@ from ..models.connection import (
     TcpConnection,
 )
 from ..models.poll import ReadFunction
+from .serialports import open_error
 from .traffic import Direction, TrafficLog
 
 log = logging.getLogger(__name__)
@@ -34,6 +35,8 @@ log = logging.getLogger(__name__)
 # Inside a container 127.0.0.1 is the container itself, a classic docker-compose trap.
 IN_CONTAINER = Path("/.dockerenv").exists()
 LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
+# Opening a port to find out why it failed can hang (e.g. Bluetooth serial ports).
+SERIAL_PROBE_TIMEOUT_S = 5.0
 
 EXCEPTION_NAMES: dict[int, str] = {
     1: "Illegal function",
@@ -153,7 +156,7 @@ class Connection:
                 log.debug("connect %s failed: %s", self.id, exc)
                 error = str(exc)
             if not ok and error is None:
-                error = self._connect_failed_message()
+                error = await self._serial_open_error() or self._connect_failed_message()
         self.last_error = None if ok else error
         self.state = ConnectionState.CONNECTED if ok else ConnectionState.DISCONNECTED
         return ok
@@ -169,6 +172,18 @@ class Connection:
         except OSError:
             return f"cannot resolve host {cfg.host!r}"
         return None
+
+    async def _serial_open_error(self) -> str | None:
+        """Why the serial port did not open (pymodbus only says that it did not)."""
+        cfg = self.config
+        if not isinstance(cfg, RtuConnection):
+            return None
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(open_error, cfg.serial_port), SERIAL_PROBE_TIMEOUT_S
+            )
+        except asyncio.TimeoutError:
+            return f"serial port {cfg.serial_port} does not respond to open"
 
     def _connect_failed_message(self) -> str:
         cfg = self.config

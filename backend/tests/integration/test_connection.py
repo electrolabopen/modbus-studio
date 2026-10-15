@@ -1,9 +1,11 @@
+import os
+
 import pytest
 
 from modbus_studio.core.codec import ByteOrder, DataType, decode
 from modbus_studio.core.connection import ConnectionManager, ErrorKind, RequestError
 from modbus_studio.core.traffic import Direction, TrafficLog
-from modbus_studio.models import ReadFunction, TcpConnection
+from modbus_studio.models import ReadFunction, RtuConnection, TcpConnection
 from modbus_studio.simulator import CONST_INT32, CONST_UINT32
 
 HR = ReadFunction.READ_HOLDING_REGISTERS
@@ -115,6 +117,16 @@ async def test_unknown_host_is_reported(manager):
         await conn.read(HR, 1, 0, 1)
     assert info.value.kind is ErrorKind.DISCONNECTED
     assert str(info.value) == "cannot resolve host 'modbus-sim.invalid'"
+    assert conn.last_error == str(info.value)
+
+
+async def test_missing_serial_port_is_reported(manager):
+    port = "COM250" if os.name == "nt" else "/dev/ttyMODBUS-STUDIO-TEST"
+    conn = manager.add(RtuConnection(id="rtu", serial_port=port, timeout_s=0.2))
+    with pytest.raises(RequestError) as info:
+        await conn.read(HR, 1, 0, 1)
+    assert info.value.kind is ErrorKind.DISCONNECTED
+    assert str(info.value).startswith(f"serial port {port} not found")
     assert conn.last_error == str(info.value)
 
 

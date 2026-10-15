@@ -145,6 +145,11 @@ select:focus,
   min-width: 0;
 }
 
+/* /dev/serial/by-id paths are long and have no spaces. */
+.conn-text .mono {
+  overflow-wrap: anywhere;
+}
+
 .conn-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -820,4 +825,55 @@ select:focus,
   border-bottom: 1px solid var(--border);
   color: var(--warning);
   font-size: 12px;
+}
+
+/* -- serial port picker ---------------------------------------------------- */
+
+.port-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  margin-top: 6px;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.port-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.port-list .port {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.port-list .port:hover {
+  border-color: var(--text-muted);
+}
+
+.port-list .port.chosen {
+  border-color: var(--accent);
+}
+
+.port-list .port small {
+  flex-basis: 100%;
+}
+
+.port-list .warn {
+  color: var(--warning);
 }

@@ -29,6 +29,7 @@ from ..models.views import (
     PollView,
     RawWrite,
     RegisterMapImport,
+    SerialPortView,
     TrafficEntryView,
     WindowWrite,
     WorkspaceImportResult,
@@ -62,6 +63,18 @@ router = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
 @router.get("/connections", tags=["connections"])
 async def list_connections(studio: StudioDep) -> list[ConnectionView]:
     return studio.list_connections()
+
+
+@router.get(
+    "/serial-ports",
+    tags=["connections"],
+    summary="List the serial ports of the machine running the server",
+    description="For RTU connections. `stable_path` is the /dev/serial/by-id link of a USB "
+    "adapter on Linux, which keeps working when adapters are plugged in another order. "
+    "Inside Docker only the devices passed with --device are listed.",
+)
+async def list_serial_ports(studio: StudioDep) -> list[SerialPortView]:
+    return await studio.serial_ports()
 
 
 @router.post("/connections", status_code=status.HTTP_201_CREATED, tags=["connections"])

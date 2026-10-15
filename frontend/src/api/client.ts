@@ -4,6 +4,7 @@ import type {
   FormatPatch,
   PollDefinition,
   PollView,
+  SerialPort,
   WindowWrite,
   WriteLogEntry,
   Workspace,
@@ -100,6 +101,7 @@ export const getHealth = () => request<Health>('/health')
 export const api = {
   createConnection: (config: ConnectionConfig) =>
     request<ConnectionView>('/connections', json('POST', config)),
+  listSerialPorts: () => request<SerialPort[]>('/serial-ports'),
   updateConnection: (id: string, config: ConnectionConfig) =>
     request<ConnectionView>(`/connections/${encodeURIComponent(id)}`, json('PUT', config)),
   deleteConnection: (id: string, cascade = false) =>

@@ -47,7 +47,9 @@ export function Sidebar() {
               <div className="conn-text">
                 <div className="conn-name">{label}</div>
                 <div className="muted small mono">
-                  {'host' in config ? `${config.host}:${config.port}` : config.serial_port}
+                  {config.type === 'rtu'
+                    ? `${config.serial_port} · ${config.baudrate} ${config.bytesize}${config.parity}${config.stopbits}`
+                    : `${config.host}:${config.port}`}
                   {config.type === 'rtu_over_tcp' && ' · RTU/TCP'}
                 </div>
                 <div className="muted small">

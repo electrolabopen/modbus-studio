@@ -5,10 +5,12 @@ The API layer only translates HTTP/WebSocket to calls on :class:`Studio`.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
+from dataclasses import asdict
 from typing import Any
 
-from ..models.connection import ConnectionConfig, TcpConnection
+from ..models.connection import ConnectionConfig, RtuConnection, TcpConnection
 from ..models.format import RegisterFormatModel
 from ..models.poll import PollDefinition, ReadFunction
 from ..models.views import (
@@ -18,6 +20,7 @@ from ..models.views import (
     PollData,
     PollView,
     RawWrite,
+    SerialPortView,
     TrafficEntryView,
     WindowWrite,
     WritePlan,
@@ -42,6 +45,7 @@ from .connection import (
 from .frames import FrameInfo, describe
 from .poller import PollManager, PollResult, PollTask
 from .registermap import MapError, MapRow, RegisterMapError, WindowFit, parse_register_map
+from .serialports import list_serial_ports
 from .traffic import TrafficEntry, TrafficLog
 from .writelog import WriteLog
 
@@ -566,6 +570,19 @@ class Studio:
             values=values,
         )
         return plan
+
+    # -- serial ports --------------------------------------------------------
+
+    async def serial_ports(self) -> list[SerialPortView]:
+        ports = await asyncio.to_thread(list_serial_ports)
+        rtu = [c.config for c in self.connections.all() if isinstance(c.config, RtuConnection)]
+        return [
+            SerialPortView(
+                **asdict(p),
+                used_by=[c.id for c in rtu if c.serial_port in (p.device, p.stable_path)],
+            )
+            for p in ports
+        ]
 
     # -- traffic -----------------------------------------------------------
 

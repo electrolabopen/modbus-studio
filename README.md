@@ -19,7 +19,7 @@ network and open it from any browser.
 | | Feature | Status |
 |---|---|---|
 | ✅ | Modbus TCP, RTU over TCP | core done |
-| ✅ | Modbus RTU (serial) | core done, hardware validation in phase 6 |
+| ✅ | Modbus RTU (serial): port discovery, line settings in the UI | done; hardware validation in phase 6 |
 | ✅ | Read FC01–FC04, write FC05/06/15/16 | core done |
 | ✅ | signed, unsigned, hex, binary, 32-bit long/float, 64-bit long/double | core done |
 | ✅ | Byte orders ABCD, CDAB, BADC, DCBA | core done |
