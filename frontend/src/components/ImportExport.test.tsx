@@ -104,7 +104,7 @@ describe('workspace export', () => {
     await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1))
     // The link counts as open once the first message arrives.
     act(() => FakeWebSocket.instances[0].emit({ type: 'snapshot', connections: [], polls: [] }))
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Export' })))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Export workspace' })))
 
     const blob = (createObjectURL.mock.calls[0] as unknown as [Blob])[0]
     expect(JSON.parse(await blob.text())).toEqual(workspace)
@@ -155,5 +155,36 @@ describe('CSV register map import', () => {
     expect(list).toHaveTextContent('line 3: unknown type float16')
     expect(list).toHaveTextContent('line 5: address 9-10 is outside this window (0-2)')
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
+  })
+
+  it('offers to grow a window that is too small for the file', async () => {
+    const errors = [{ line: 3, message: 'address 5 is outside this window (0-2)' }]
+    const grown = pollView('w1')
+    grown.definition.quantity = 6
+    const fetchMock = vi.fn(async (url: string) =>
+      url.endsWith('?fit=true')
+        ? new Response(JSON.stringify(grown), { status: 200 })
+        : new Response(
+            JSON.stringify({ detail: '1 problem(s)', errors, fit: { address: 0, quantity: 6 } }),
+            { status: 400 },
+          ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    renderWindow()
+    pick('address,type\n0,int16\n5,int16\n')
+    await screen.findByText(/· 2 rows/)
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Apply' })))
+    expect(screen.getByRole('status')).toHaveTextContent('addresses 0–5 (6 registers)')
+    expect(screen.getByLabelText('CSV problems')).toHaveTextContent('line 3: address 5 is outside')
+
+    await act(async () =>
+      fireEvent.click(screen.getByRole('button', { name: 'Grow window and apply' })),
+    )
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/polls/w1/register-map?fit=true',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(useStudio.getState().polls.w1.definition.quantity).toBe(6)
   })
 })

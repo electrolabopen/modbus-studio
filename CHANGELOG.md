@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Added
+- Importing a CSV register map into a window that is too small offers **Grow window and
+  apply**, which widens the window to the smallest range that holds every row and applies
+  the map in one step (`POST /api/polls/{id}/register-map?fit=true`; a failed import
+  returns the suggested `fit`). Offered only when that alone fixes the file and Modbus
+  can read the result in one request.
+- The Chart panel points out rows selected in the windows that are not plotted yet, with
+  a button to plot them.
+- Clearer button names: **Export workspace**, **Import workspace…** (top bar) and
+  **Import CSV map…** (each window).
 - Real-time chart (**Chart** in the toolbar, uPlot): select rows in a window and press
   **Plot** (or **Unplot**); a 32/64-bit value is one series, coils and discrete inputs
   are drawn as steps, failed reads leave a gap. Up to 8 series, marked with their color
@@ -17,10 +26,10 @@
   connection, direction, device, function, hex bytes and "errors only"; pause keeps the
   view and counts new frames; TX/RX/exception/malformed counters; CSV export of the
   filtered frames; clear. Frames are only streamed while the monitor is open.
-- Workspace export and import from the UI (**Export**, **Import…**): replace the session or
+- Workspace export and import from the UI (**Export workspace**, **Import workspace…**): replace the session or
   merge into it; `GET /api/workspace`, `POST /api/workspace?mode=replace|merge`. Files
   are validated before anything is touched; merging refuses ids already in use.
-- CSV register maps (**CSV…** on a window, `POST /api/polls/{id}/register-map`): columns
+- CSV register maps (**Import CSV map…** on a window, `POST /api/polls/{id}/register-map`): columns
   address, alias, type, byte_order, scale, unit; `,` or `;` separated (with decimal
   comma), BOM and `#` comments accepted. All rows are validated first (unknown types,
   overlapping values, rows outside the window, 4xxxx-style addresses, rows hidden by the

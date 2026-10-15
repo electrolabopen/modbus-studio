@@ -52,10 +52,20 @@ class MapError:
     message: str
 
 
+@dataclass(frozen=True)
+class WindowFit:
+    """The smallest window, containing the current one, that holds every row."""
+
+    address: int
+    quantity: int
+
+
 class RegisterMapError(ValueError):
-    def __init__(self, errors: list[MapError]) -> None:
+    def __init__(self, errors: list[MapError], fit: WindowFit | None = None) -> None:
         super().__init__(f"{len(errors)} problem(s) in the register map")
         self.errors = errors
+        # Set when resizing the window to ``fit`` would fix every problem.
+        self.fit = fit
 
 
 def _number(text: str, decimal_comma: bool) -> float:

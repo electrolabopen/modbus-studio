@@ -140,9 +140,9 @@ preferably keep it behind a VPN or a reverse proxy with TLS.
 ## Workspaces, register maps and the write log
 
 - **Workspaces.** Connections, windows, formats and aliases are saved after every change
-  (in Docker: `/data/workspace.json`) and restored at startup. **Export** downloads the
-  session as JSON; **Import…** loads one, replacing the session or adding to it.
-- **CSV register maps.** **CSV…** on a window applies a file with the columns
+  (in Docker: `/data/workspace.json`) and restored at startup. **Export workspace** downloads the
+  session as JSON; **Import workspace…** loads one, replacing the session or adding to it.
+- **CSV register maps.** **Import CSV map…** on a window applies a file with the columns
   `address,alias,type,byte_order,scale,unit` (only `address` is required, `,` or `;`
   separated). Every row is checked first and problems are listed by line; nothing is
   applied until the whole file is valid. Addresses are 0-based protocol addresses.

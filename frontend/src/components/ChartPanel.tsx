@@ -3,6 +3,7 @@ import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
 import {
   COLORS,
+  MAX_SERIES,
   SPANS,
   alignSeries,
   alignedToCsv,
@@ -52,6 +53,8 @@ export function ChartPanel({ onClose }: { onClose: () => void }) {
   const history = useStudio((s) => s.history)
   const unplot = useStudio((s) => s.unplot)
   const clearHistory = useStudio((s) => s.clearHistory)
+  const selected = useStudio((s) => s.selected)
+  const plot = useStudio((s) => s.plot)
   const [span, setSpan] = useState(60)
   const [now, setNow] = useState(() => Date.now() / 1000)
   const [frozen, setFrozen] = useState<View | null>(null)
@@ -178,6 +181,15 @@ export function ChartPanel({ onClose }: { onClose: () => void }) {
 
   const values = valuesAt(view.data, cursor ?? undefined)
 
+  // Rows selected in the windows that are not on the chart yet.
+  const pending = Object.entries(selected).flatMap(([poll, addresses]) =>
+    addresses
+      .filter((address) => !plotted.some((k) => k.poll === poll && k.address === address))
+      .map((address) => ({ poll, address })),
+  )
+  const pendingWindows = [...new Set(pending.map((k) => polls[k.poll]?.definition.name || k.poll))]
+  const room = MAX_SERIES - plotted.length
+
   const exportCsv = () =>
     downloadText(
       `modbus-chart-${fileTimestamp()}.csv`,
@@ -241,6 +253,23 @@ export function ChartPanel({ onClose }: { onClose: () => void }) {
           Close
         </button>
       </div>
+      {pending.length > 0 && (
+        <div className="chart-pending" role="status">
+          {pending.length} selected {pending.length === 1 ? 'row' : 'rows'} in{' '}
+          {pendingWindows.join(', ')} not on the chart yet — press <strong>Plot</strong>
+          {room > 0 ? (
+            <>
+              {' '}
+              or{' '}
+              <button className="btn btn-small" onClick={() => plot(pending)}>
+                Plot {pending.length > room ? `the first ${room}` : 'them'}
+              </button>
+            </>
+          ) : (
+            ` after removing a series (the chart holds ${MAX_SERIES}).`
+          )}
+        </div>
+      )}
       {series.length === 0 ? (
         <div className="chart-empty muted">
           Select rows in a polling window and press <strong>Plot</strong> to chart them.

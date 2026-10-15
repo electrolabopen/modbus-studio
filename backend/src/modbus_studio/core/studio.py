@@ -41,7 +41,7 @@ from .connection import (
 )
 from .frames import FrameInfo, describe
 from .poller import PollManager, PollResult, PollTask
-from .registermap import MapError, RegisterMapError, parse_register_map
+from .registermap import MapError, MapRow, RegisterMapError, WindowFit, parse_register_map
 from .traffic import TrafficEntry, TrafficLog
 from .writelog import WriteLog
 
@@ -344,20 +344,44 @@ class Studio:
         formats = {a: f for a, f in formats.items() if f != d.default_format}
         return await self.update_poll(d.model_copy(update={"formats": formats}))
 
-    async def import_register_map(self, poll_id: str, text: str) -> PollView:
-        """Replace a window's per-cell formats with a CSV register map."""
+    async def import_register_map(self, poll_id: str, text: str, fit: bool = False) -> PollView:
+        """Replace a window's per-cell formats with a CSV register map.
+
+        With ``fit``, a window too small for the file first grows (never shrinks)
+        to the smallest range that holds every row, when Modbus allows it.
+        """
         d = self._task(poll_id).definition
         rows = parse_register_map(text)
+
+        def end_of(row: MapRow) -> int:
+            return row.address if d.function.is_bit else row.last_address
+
         last = d.address + d.quantity - 1
+        window_fit: WindowFit | None = None
+        if rows:
+            low = min(d.address, *(r.address for r in rows))
+            high = max(last, *(end_of(r) for r in rows))
+            fits_modbus = high - low < d.function.max_quantity and high <= 0xFFFF
+            if (low, high) != (d.address, last) and fits_modbus:
+                window_fit = WindowFit(low, high - low + 1)
+        if fit and window_fit:
+            d = d.model_copy(
+                update={"address": window_fit.address, "quantity": window_fit.quantity}
+            )
+            last = d.address + d.quantity - 1
+            window_fit = None
+
         errors: list[MapError] = []
+        outside = 0
         for row in rows:
-            end = row.address if d.function.is_bit else row.last_address
+            end = end_of(row)
             if not d.address <= row.address <= end <= last:
                 span = f"{row.address}-{end}" if end != row.address else str(row.address)
                 message = f"address {span} is outside this window ({d.address}-{last})"
                 if row.address >= 30001:
                     message += "; use 0-based protocol addresses, not 3xxxx/4xxxx numbers"
                 errors.append(MapError(row.line, message))
+                outside += 1
             elif d.function.is_bit and (
                 row.dtype != d.default_format.dtype
                 or row.order != d.default_format.order
@@ -366,7 +390,8 @@ class Studio:
             ):
                 errors.append(MapError(row.line, "coils and discrete inputs only take an alias"))
         if errors:
-            raise RegisterMapError(errors)
+            # Offer to resize only when that alone fixes the file.
+            raise RegisterMapError(errors, window_fit if outside == len(errors) else None)
 
         if d.function.is_bit:
             formats = {r.address: RegisterFormatModel(alias=r.alias) for r in rows}

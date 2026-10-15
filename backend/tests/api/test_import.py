@@ -88,9 +88,47 @@ def test_invalid_csv_changes_nothing_and_lists_every_line(client, sim_conn):
             "addresses, not 3xxxx/4xxxx numbers",
         },
     ]
+    # 40001 is far beyond what one FC03 request can read: no window to offer.
+    assert res.json()["fit"] is None
     assert client.get("/api/polls/w").json()["definition"]["formats"]["0"]["alias"] == "keep"
     res = import_csv(client, "w", "address,type\nx,int16\n")
     assert res.status_code == 400 and res.json()["errors"][0]["line"] == 2
+
+
+def test_a_window_too_small_can_grow_to_fit_the_map(client, sim_conn):
+    create_poll(client, id="small", address=10, quantity=10)
+    example = EXAMPLE.read_text(encoding="utf-8")
+    res = import_csv(client, "small", example)
+    assert res.status_code == 400
+    assert res.json()["fit"] == {"address": 0, "quantity": 28}
+    assert client.get("/api/polls/small").json()["definition"]["quantity"] == 10
+
+    res = client.post("/api/polls/small/register-map?fit=true", json={"csv": example})
+    assert res.status_code == 200, res.text
+    d = res.json()["definition"]
+    assert (d["address"], d["quantity"]) == (0, 28)
+    assert d["formats"]["26"] == {
+        "dtype": "uint32",
+        "order": "CDAB",
+        "scale": 1.0,
+        "unit": "",
+        "alias": "uint32 constant",
+    }
+    by = wait_for(lambda: (c := cells(client, "small")) and len(c) >= 27 and c)
+    assert by[0]["alias"] == "counter"
+
+
+def test_no_window_is_offered_when_resizing_would_not_fix_the_map(client, sim_conn):
+    create_poll(client, id="c", function=1, address=0, quantity=8)
+    # Row 20 is outside, but row 3 has a unit, which a coil window never takes.
+    res = import_csv(client, "c", "address,alias,unit\n3,pump,bar\n20,valve,\n")
+    assert res.status_code == 400 and res.json()["fit"] is None
+    create_poll(client, id="r", address=0, quantity=100)
+    # Growing to 0-129 would pass the 125 registers one FC03 request can read.
+    assert import_csv(client, "r", "address,type\n128,float32\n").json()["fit"] is None
+    res = client.post("/api/polls/r/register-map?fit=true", json={"csv": "address\n128\n"})
+    assert res.status_code == 400
+    assert client.get("/api/polls/r").json()["definition"]["quantity"] == 100
 
 
 def test_rows_hidden_by_a_wide_window_default_are_rejected(client, sim_conn):

@@ -385,6 +385,12 @@ select:focus,
   font-size: 13px;
 }
 
+.form-note {
+  margin: 10px 0 0;
+  color: var(--warning);
+  font-size: 13px;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -807,4 +813,11 @@ select:focus,
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
+}
+
+.chart-pending {
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--warning);
+  font-size: 12px;
 }

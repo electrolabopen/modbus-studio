@@ -4,10 +4,18 @@ import type { MapError, PollView } from '../api/types'
 import { useStudio } from '../store'
 import { Modal } from './Modal'
 
-function mapErrors(err: unknown): MapError[] | null {
+/** Window that would hold every row, offered when that is the only problem. */
+interface WindowFit {
+  address: number
+  quantity: number
+}
+
+function mapErrors(err: unknown): { errors: MapError[]; fit: WindowFit | null } | null {
   if (!(err instanceof ApiError) || !err.body || typeof err.body !== 'object') return null
-  const errors = (err.body as { errors?: unknown }).errors
-  return Array.isArray(errors) ? (errors as MapError[]) : null
+  const body = err.body as { errors?: unknown; fit?: WindowFit | null }
+  return Array.isArray(body.errors)
+    ? { errors: body.errors as MapError[], fit: body.fit ?? null }
+    : null
 }
 
 /** Rows that are neither blank, a comment nor the header. */
@@ -31,6 +39,7 @@ export function CsvImportDialog({ view, file, onClose }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lineErrors, setLineErrors] = useState<MapError[]>([])
+  const [fit, setFit] = useState<WindowFit | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -48,24 +57,28 @@ export function CsvImportDialog({ view, file, onClose }: Props) {
     setBusy(true)
     setError(null)
     setLineErrors([])
+    setFit(null)
     try {
-      upsert(await api.importRegisterMap(def.id, text))
+      upsert(await api.importRegisterMap(def.id, text, fit !== null))
       onClose()
     } catch (err) {
-      const errors = mapErrors(err)
-      if (errors) setLineErrors(errors)
-      else setError(err instanceof Error ? err.message : String(err))
+      const problems = mapErrors(err)
+      if (problems) {
+        setLineErrors(problems.errors)
+        setFit(problems.fit)
+      } else setError(err instanceof Error ? err.message : String(err))
     } finally {
       setBusy(false)
     }
   }
 
   const last = def.address + def.quantity - 1
+  const isBitWindow = def.function <= 2
   return (
     <Modal
       title="Import register map"
-      submitLabel="Apply"
-      busy={busy || text === null || lineErrors.length > 0}
+      submitLabel={fit ? 'Grow window and apply' : 'Apply'}
+      busy={busy || text === null || (lineErrors.length > 0 && !fit)}
       error={error}
       onSubmit={submit}
       onClose={onClose}
@@ -80,9 +93,18 @@ export function CsvImportDialog({ view, file, onClose }: Props) {
         Replaces the data types, byte orders, scales, units and aliases of this window.
         Addresses not in the file go back to the window format.
       </p>
+      {fit && (
+        <p className="form-note" role="status">
+          The window is too small for this file. <strong>Grow window and apply</strong> changes
+          it to addresses {fit.address}–{fit.address + fit.quantity - 1} ({fit.quantity}{' '}
+          {isBitWindow ? 'items' : 'registers'}) and applies the map.
+        </p>
+      )}
       {lineErrors.length > 0 && (
         <>
-          <p className="form-error">Nothing was applied. Fix these lines and import again:</p>
+          <p className="form-error">
+            {fit ? 'These rows are outside the window:' : 'Nothing was applied. Fix these lines and import again:'}
+          </p>
           <ul className="error-list mono" aria-label="CSV problems">
             {lineErrors.map((e, i) => (
               <li key={i}>

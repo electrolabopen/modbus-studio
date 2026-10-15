@@ -71,6 +71,9 @@ interface StudioState {
    * record itself is replaced on every change so that subscribers re-render.
    */
   history: Record<string, Sample[]>
+  /** Values selected in each window (first address of each value), for the chart's hint. */
+  selected: Record<string, number[]>
+  setSelected: (poll: string, addresses: number[]) => void
   /** Add series (up to MAX_SERIES); returns how many did not fit. */
   plot: (keys: SeriesKey[]) => number
   unplot: (keys: SeriesKey[]) => void
@@ -93,6 +96,17 @@ export const useStudio = create<StudioState>()((set, get) => ({
   setTraffic: (entries) => set({ traffic: entries.slice(-MAX_FRAMES) }),
   plotted: loadPlotted(),
   history: {},
+  selected: {},
+  setSelected: (poll, addresses) =>
+    set((s) => {
+      if (addresses.length === 0) {
+        if (!(poll in s.selected)) return {}
+        const selected = { ...s.selected }
+        delete selected[poll]
+        return { selected }
+      }
+      return { selected: { ...s.selected, [poll]: addresses } }
+    }),
   plot: (keys) => {
     const s = get()
     const fresh = keys.filter(

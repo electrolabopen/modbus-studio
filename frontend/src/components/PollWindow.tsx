@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { COLORS, MAX_SERIES, sameSeries } from '../chart'
 import {
@@ -60,6 +60,7 @@ export function PollWindow({ view }: { view: PollView }) {
   const [actionError, setActionError] = useState<string | null>(null)
   const plotted = useStudio((s) => s.plotted)
   const plot = useStudio((s) => s.plot)
+  const setSelected = useStudio((s) => s.setSelected)
   const unplot = useStudio((s) => s.unplot)
 
   const stats = latest?.stats ?? view.stats
@@ -84,6 +85,13 @@ export function PollWindow({ view }: { view: PollView }) {
         .filter((c) => c.covered_by === null && c.address >= selected.start && c.address <= selected.end)
         .map((c) => ({ poll: def.id, address: c.address }))
     : []
+  // Tell the chart panel, which offers to plot what is selected.
+  const selectedKey = toPlot.map((k) => k.address).join(',')
+  useEffect(() => {
+    setSelected(def.id, selectedKey ? selectedKey.split(',').map(Number) : [])
+    return () => setSelected(def.id, [])
+  }, [def.id, selectedKey, setSelected])
+
   const allPlotted =
     toPlot.length > 0 && toPlot.every((k) => plotted.some((p) => sameSeries(p, k)))
   const colorOf = (address: number) => {
@@ -220,7 +228,7 @@ export function PollWindow({ view }: { view: PollView }) {
             title="Import a CSV register map (address, alias, type, byte_order, scale, unit)"
             onClick={() => csvInput.current?.click()}
           >
-            CSV…
+            Import CSV map…
           </button>
           <input
             ref={csvInput}

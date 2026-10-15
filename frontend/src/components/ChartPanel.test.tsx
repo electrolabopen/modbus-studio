@@ -150,6 +150,24 @@ describe('ChartPanel', () => {
     expect(useStudio.getState().plotted).toEqual([{ poll: 'w1', address: 0 }])
   })
 
+  it('points out selected rows that are not plotted yet', () => {
+    const { plot, setSelected } = useStudio.getState()
+    plot([{ poll: 'w1', address: 0 }])
+    setSelected('w1', [0, 1])
+    setSelected('w2', [3])
+    render(<ChartPanel onClose={() => {}} />)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '2 selected rows in Tank, Pumps not on the chart yet — press Plot or Plot them',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Plot them' }))
+    expect(useStudio.getState().plotted).toEqual([
+      { poll: 'w1', address: 0 },
+      { poll: 'w1', address: 1 },
+      { poll: 'w2', address: 3 },
+    ])
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
   it('exports what it shows as CSV', () => {
     useStudio.getState().plot([{ poll: 'w1', address: 1 }])
     render(<ChartPanel onClose={() => {}} />)

@@ -121,8 +121,12 @@ export const api = {
       ...json('POST', req),
       signal,
     }),
-  importRegisterMap: (id: string, csv: string) =>
-    request<PollView>(`/polls/${encodeURIComponent(id)}/register-map`, json('POST', { csv })),
+  /** With ``fit``, a window too small for the map grows to hold every row first. */
+  importRegisterMap: (id: string, csv: string, fit = false) =>
+    request<PollView>(
+      `/polls/${encodeURIComponent(id)}/register-map${fit ? '?fit=true' : ''}`,
+      json('POST', { csv }),
+    ),
   exportWorkspace: () => request<Workspace>('/workspace'),
   importWorkspace: (workspace: Workspace, mode: 'replace' | 'merge') =>
     request<{ connections: number; polls: number }>(

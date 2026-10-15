@@ -218,12 +218,19 @@ async def clear_traffic(studio: StudioDep) -> Response:
     tags=["polls"],
     summary="Replace a window's cell formats with a CSV register map",
     description="Columns: address, alias, type, byte_order, scale, unit. Nothing is "
-    "applied unless every row is valid; problems are listed per line in `errors`.",
+    "applied unless every row is valid; problems are listed per line in `errors`. When "
+    "the only problem is rows outside the window and a larger window would hold them, "
+    "the error also has `fit` (address, quantity); `fit=true` grows the window to it "
+    "and applies the map in one step.",
 )
 async def import_register_map(
-    poll_id: str, body: RegisterMapImport, studio: StudioDep, hub: HubDep
+    poll_id: str,
+    body: RegisterMapImport,
+    studio: StudioDep,
+    hub: HubDep,
+    fit: Annotated[bool, Query(description="Grow the window to hold every row")] = False,
 ) -> PollView:
-    view = await studio.import_register_map(poll_id, body.csv)
+    view = await studio.import_register_map(poll_id, body.csv, fit=fit)
     hub.publish_snapshot()
     return view
 
@@ -285,6 +292,7 @@ def install_error_handlers(app: FastAPI) -> None:
             content={
                 "detail": str(exc),
                 "errors": [{"line": e.line, "message": e.message} for e in exc.errors],
+                "fit": exc.fit and {"address": exc.fit.address, "quantity": exc.fit.quantity},
             },
         )
 

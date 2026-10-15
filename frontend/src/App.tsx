@@ -126,11 +126,21 @@ function Toolbar({ enabled, panel, onTogglePanel }: ToolbarProps) {
       >
         + Window
       </button>
-      <button className="btn" disabled={!enabled} onClick={exportWorkspace}>
-        Export
+      <button
+        className="btn"
+        disabled={!enabled}
+        title="Download the connections and windows as JSON"
+        onClick={exportWorkspace}
+      >
+        Export workspace
       </button>
-      <button className="btn" disabled={!enabled} onClick={() => fileInput.current?.click()}>
-        Import…
+      <button
+        className="btn"
+        disabled={!enabled}
+        title="Load connections and windows from a workspace JSON file"
+        onClick={() => fileInput.current?.click()}
+      >
+        Import workspace…
       </button>
       <input
         ref={fileInput}
