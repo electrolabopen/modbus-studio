@@ -1,0 +1,72 @@
+# Development and demo stack: the app plus a Modbus slave simulator.
+#
+#   docker compose up --build
+#   open http://127.0.0.1:8000: a connection to the simulator and a demo window are
+#   preloaded from docker/demo-workspace.json.
+#
+# Connections and windows are saved after every change in the "modbus-studio-data"
+# volume and restored on restart. The demo workspace only seeds the first start; to go
+# back to it, delete the volume: docker compose down -v
+#
+# Between containers, use the service name as the host: "simulator", port 5020 (TCP)
+# or 5021 (RTU over TCP). 127.0.0.1 inside the app container is the app container
+# itself, not your PC and not the simulator. From Windows/macOS/Linux tools on the
+# host (e.g. another Modbus master) use 127.0.0.1:5020.
+#
+# Ports are published on 127.0.0.1 only. To reach the UI from other machines
+# (e.g. a gateway on the plant network), change the binding AND set
+# MODBUS_STUDIO_TOKEN.
+
+x-image: &image
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+  image: modbus-studio:dev
+
+services:
+  modbus-studio:
+    <<: *image
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      MODBUS_STUDIO_TOKEN: ${MODBUS_STUDIO_TOKEN:-}
+      MODBUS_STUDIO_WORKSPACE: /etc/modbus-studio/workspace.json
+      MODBUS_STUDIO_STATE_FILE: /data/workspace.json
+    volumes:
+      - ./docker/demo-workspace.json:/etc/modbus-studio/workspace.json:ro
+      - modbus-studio-data:/data
+    depends_on:
+      simulator:
+        condition: service_healthy
+    # Serial adapters (Linux hosts only), see docs/rtu-linux.md:
+    # devices:
+    #   - /dev/ttyUSB0:/dev/ttyUSB0
+    restart: unless-stopped
+
+  simulator:
+    <<: *image
+    # Listen on all interfaces of the container: the app reaches it over the compose
+    # network and the published ports reach it from the host.
+    command:
+      ["modbus-studio-sim", "--host", "0.0.0.0", "--tcp-port", "5020", "--rtu-tcp-port", "5021"]
+    networks:
+      default:
+        # Also reachable under the command's name, an easy one to type by mistake.
+        aliases: [modbus-studio-sim]
+    ports:
+      - "127.0.0.1:5020:5020"
+      - "127.0.0.1:5021:5021"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import socket; socket.create_connection(('127.0.0.1', 5020), 2).close()"
+      interval: 30s
+      timeout: 3s
+      start_period: 30s
+      start_interval: 1s
+    restart: unless-stopped
+
+volumes:
+  modbus-studio-data:

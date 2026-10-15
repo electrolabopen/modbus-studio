@@ -1,0 +1,158 @@
+# modbus-studio
+
+An open-source Modbus master that runs in your browser. It polls Modbus TCP, RTU and
+RTU-over-TCP devices, decodes their registers into engineering values, writes coils and
+registers, and shows every frame on the wire. It is written from scratch from the public
+Modbus specification. Run it on your laptop, or on a gateway or Raspberry Pi on the plant
+network and open it from any browser.
+
+> **Status: pre-alpha.** The Modbus core, the REST API and the WebSocket are done and
+> tested. The UI can already create connections and polling windows and shows live
+> values. See the [roadmap](docs/ROADMAP.md).
+
+## Features
+
+| | Feature | Status |
+|---|---|---|
+| ✅ | Modbus TCP, RTU over TCP | core done |
+| ✅ | Modbus RTU (serial) | core done, hardware validation in phase 6 |
+| ✅ | Read FC01–FC04, write FC05/06/15/16 | core done |
+| ✅ | signed, unsigned, hex, binary, 32-bit long/float, 64-bit long/double | core done |
+| ✅ | Byte orders ABCD, CDAB, BADC, DCBA | core done |
+| ✅ | Scale and unit per register (engineering values) | core done |
+| ✅ | Raw TX/RX frame capture, error counters per window | core done |
+| ✅ | Optional API token, binds to 127.0.0.1 by default | done |
+| 🟡 | Multiple polling windows in the UI, each with its own scan rate | basic version done |
+| ⏳ | Write by double-clicking a cell, aliases, JSON workspaces, CSV register maps | phase 4 |
+| ⏳ | Traffic monitor panel, real-time chart | phase 5 |
+| ⏳ | Export to InfluxDB, publish over MQTT | phase 7 |
+| ✅ | REST API + WebSocket (the UI uses the same API) | done, OpenAPI at `/docs` |
+| ⏳ | `pip install`, multi-arch Docker image (amd64/arm64) | phase 8 |
+
+## Screenshots
+
+Coming with the first UI milestone (phase 3).
+
+## Quick start
+
+### Docker (app + simulator)
+
+```bash
+docker compose up --build
+```
+
+Then open <http://127.0.0.1:8000>. A connection to the bundled simulator and a demo
+window are preloaded from [`docker/demo-workspace.json`](docker/demo-workspace.json), so
+values update right away.
+
+Which host to use depends on where the Modbus master runs:
+
+| Master | Host | Port |
+|---|---|---|
+| modbus-studio inside compose | `simulator` (service name) | 5020 TCP, 5021 RTU over TCP |
+| Any tool on the host PC | `127.0.0.1` | 5020 TCP, 5021 RTU over TCP |
+
+Connections and windows are saved in the `modbus-studio-data` volume after every change
+and restored when the container restarts or is recreated. The demo workspace only seeds
+the first start, so a demo connection you delete stays deleted. To start over from the
+demo, remove the volume with `docker compose down -v`.
+
+Inside the app container `127.0.0.1` is the container itself, so a connection to
+`127.0.0.1:5020` created from the UI fails; the sidebar says why. To check the stack:
+
+```bash
+docker compose up -d --build --wait
+python docker/smoke_test.py      # app -> simulator through the compose network
+python docker/smoke_test.py persist-write && docker compose restart modbus-studio   && python docker/smoke_test.py persist-check   # the workspace survives a restart
+```
+
+### From source
+
+Requires Python ≥ 3.10 and Node ≥ 20.
+
+```bash
+# backend
+cd backend
+python -m venv .venv
+. .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+modbus-studio-sim &             # slave simulator on :5020 / :5021
+modbus-studio                   # API on http://127.0.0.1:8000
+
+# frontend (dev server with hot reload, proxies /api to the backend)
+cd ../frontend
+npm install
+npm run dev                     # http://127.0.0.1:5173
+```
+
+`npm run build` compiles the UI into `backend/src/modbus_studio/static`, and the Python
+server then serves it on its own port.
+
+## Running on a gateway or plant network
+
+By default the server only listens on `127.0.0.1`. To reach it from other machines:
+
+```bash
+export MODBUS_STUDIO_HOST=0.0.0.0
+export MODBUS_STUDIO_TOKEN="$(openssl rand -hex 24)"
+modbus-studio
+```
+
+With a token set, every API call must send `Authorization: Bearer <token>`. **Anyone who
+can reach the API can write to your devices.** Do not expose it without a token, and
+preferably keep it behind a VPN or a reverse proxy with TLS.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `MODBUS_STUDIO_HOST` | `127.0.0.1` | Bind address |
+| `MODBUS_STUDIO_PORT` | `8000` | HTTP port |
+| `MODBUS_STUDIO_TOKEN` | *(unset)* | Require this bearer token on the API |
+| `MODBUS_STUDIO_TRAFFIC_BUFFER` | `5000` | Frames kept for the traffic monitor |
+| `MODBUS_STUDIO_WORKSPACE` | *(unset)* | Workspace JSON with connections and windows to load at startup |
+| `MODBUS_STUDIO_STATE_FILE` | *(unset; `/data/workspace.json` in Docker)* | Save the workspace here after every change and restore it at startup; once it exists it takes precedence over `MODBUS_STUDIO_WORKSPACE` |
+
+## Simulator register map
+
+`modbus-studio-sim` serves device IDs 1 and 2. Holding and input registers share this
+layout (0-based protocol addresses):
+
+| Address | Type | Content |
+|---|---|---|
+| 0 | uint16 | counter, +1 per second |
+| 1 | uint16 | sawtooth 0–100, 10 s period |
+| 2 | int16 | temperature ×10, −50.0 … 150.0 °C (use scale 0.1) |
+| 10–11 / 12–13 / 14–15 / 16–17 | float32 | same sine wave as ABCD / CDAB / BADC / DCBA |
+| 20–23 | float64 | the same sine wave, ABCD |
+| 24–25 | int32 | −123456789, ABCD |
+| 26–27 | uint32 | 3000000000, CDAB |
+| 100–199 | — | free, writable |
+
+There are 100 writable coils (0–99). Discrete inputs 0–15 show a bit that moves one
+position per second.
+
+## Byte order naming
+
+`A` is the most significant byte of a 32-bit value:
+
+| Name | Registers | Also known as |
+|---|---|---|
+| ABCD | `[AB, CD]` | big-endian |
+| CDAB | `[CD, AB]` | word swap / little-endian word order |
+| BADC | `[BA, DC]` | byte swap |
+| DCBA | `[DC, BA]` | little-endian |
+
+For 64-bit values the same two operations apply to all four words.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). This is a clean-room project: please do not
+contribute code, screenshots, icons or text taken from proprietary Modbus tools.
+
+## License and disclaimer
+
+MIT, see [LICENSE](LICENSE).
+
+modbus-studio is an independent project. It is **not affiliated with, endorsed by or
+sponsored by Witte Software**. "Modbus" is a trademark of Schneider Electric USA, Inc.;
+the protocol specifications are published by the Modbus Organization at
+<https://modbus.org>.

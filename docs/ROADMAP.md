@@ -1,0 +1,41 @@
+# Roadmap
+
+v1 is single-user. It should run both on a workstation and on a gateway or Raspberry Pi
+on the plant network that people open from a browser. The server binds to `127.0.0.1` by
+default and has an optional bearer token.
+
+| Phase | Scope | Done when | Status |
+|---|---|---|---|
+| **0. Skeleton** | Monorepo, MIT license, CI (ruff, mypy, pytest, oxlint, vitest, multi-arch Docker build), docker-compose with the simulator, empty FastAPI and React apps | `docker compose up` starts both and the simulator answers | ✅ |
+| **1. Modbus core** | `ConnectionManager` (TCP, RTU over TCP, RTU), `PollTask` for FC01–04 with one lock per connection, `codec` with every data type and byte order plus **scale and unit per register**, TX/RX capture | Integration tests read from the simulator; codec tested against hand-written reference vectors | ✅ |
+| **2. API + WebSocket** | REST CRUD for connections and windows; write endpoints; a WebSocket carrying values, status and traffic; error counters | Complete OpenAPI; a test client receives live values | ✅ |
+| **3. Basic UI** | Dark theme, several polling windows, connection dialog, table with a format per cell or range | Three windows at different scan rates against the simulator | 🟡 minimal version: TCP / RTU-over-TCP connections, windows, live table, Tx/Err, format per window |
+| **4. Writes, aliases, workspaces, register maps** | Double-click → FC05/06/15/16, aliases, JSON workspaces, **CSV register map import** (address, alias, data type, byte order, scale, unit), writes in engineering units | Write from the UI and see it on the next poll; import a CSV and get the same table as configuring it by hand | 🟡 workspace JSON format, autosave and restore at startup done |
+| **5. Traffic monitor + chart** | TX/RX hex panel with filter, pause and export; uPlot chart of selected registers | Frames visible live; the simulator sine wave plotted | |
+| **6. RTU on real hardware** | Serial port discovery, `docs/rtu-linux.md` (dialout, udev, `/dev/serial/by-id`, RS-485 adapters, Docker `--device`) | Tested with socat ptys in CI and with a real USB-RS485 adapter | |
+| **7. Integrations** | InfluxDB and MQTT exporters with configurable mapping, optional compose profiles for InfluxDB and Mosquitto | Data in InfluxDB/Grafana and in `mosquitto_sub` | |
+| **8. Release 0.1** | README with screenshots and a GIF, docs, PyPI package, **multi-arch image `linux/amd64` + `linux/arm64` on GHCR** | `pip install modbus-studio` works on Linux, Windows and macOS; `docker run` works on x86 and on a Raspberry Pi 4/5 (64-bit OS) | |
+
+## CSV register map format (phase 4)
+
+```csv
+address,alias,type,byte_order,scale,unit
+0,counter,uint16,ABCD,1,
+2,temperature,int16,ABCD,0.1,°C
+10,flow,float32,CDAB,1,m3/h
+```
+
+- `address` is the 0-based protocol address. A `4xxxx`-style notation may be accepted
+  later as an import option.
+- `type` is one of `int16 uint16 hex16 bin16 int32 uint32 float32 int64 uint64 float64`.
+- Empty `byte_order`, `scale` and `unit` fall back to `ABCD`, `1` and no unit.
+- Rows are validated (overlapping multi-register values, unknown types). Problems are
+  reported per line and nothing is applied until all rows are valid.
+
+## Open design notes
+
+- Writes in engineering units divide by the scale and round to the nearest raw integer
+  (`codec.from_engineering`). The UI must show the raw value that will actually be
+  written.
+- `stop_all()` can cancel a request that is in flight. On TCP the transaction ID
+  discards a late reply. RTU needs verification on real hardware in phase 6.

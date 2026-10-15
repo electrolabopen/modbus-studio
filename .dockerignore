@@ -1,0 +1,11 @@
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/dist
+backend/src/modbus_studio/static
+.git
+.github
+docs

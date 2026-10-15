@@ -1,0 +1,66 @@
+import { create } from 'zustand'
+import type { Cell, ConnectionView, PollData, PollView, ServerMessage } from './api/types'
+
+export type LinkState = 'connecting' | 'open' | 'closed' | 'unauthorized'
+
+interface StudioState {
+  link: LinkState
+  connections: Record<string, ConnectionView>
+  polls: Record<string, PollView>
+  /** Last successfully read cells per window, kept while reads fail. */
+  cells: Record<string, Cell[]>
+  /** Latest result per window, successful or not. */
+  latest: Record<string, PollData>
+  setLink: (link: LinkState) => void
+  handle: (message: ServerMessage) => void
+  upsertPoll: (view: PollView) => void
+  upsertConnection: (view: ConnectionView) => void
+}
+
+export const useStudio = create<StudioState>()((set) => ({
+  link: 'connecting',
+  connections: {},
+  polls: {},
+  cells: {},
+  latest: {},
+  setLink: (link) => set({ link }),
+  upsertPoll: (view) =>
+    set((s) => ({ polls: { ...s.polls, [view.definition.id]: view } })),
+  upsertConnection: (view) =>
+    set((s) => ({ connections: { ...s.connections, [view.config.id]: view } })),
+  handle: (message) =>
+    set((s) => {
+      switch (message.type) {
+        case 'snapshot': {
+          const polls: Record<string, PollView> = {}
+          const cells: Record<string, Cell[]> = {}
+          const latest: Record<string, PollData> = {}
+          for (const p of message.polls) {
+            const id = p.definition.id
+            polls[id] = p
+            // Keep the cells we already have when the snapshot has none yet.
+            const fresh = p.data?.ok ? p.data.cells : undefined
+            const kept = fresh ?? s.cells[id]
+            if (kept) cells[id] = kept
+            const data = p.data ?? s.latest[id]
+            if (data) latest[id] = data
+          }
+          const connections = Object.fromEntries(
+            message.connections.map((c) => [c.config.id, c]),
+          )
+          return { polls, cells, latest, connections }
+        }
+        case 'poll': {
+          const id = message.data.poll_id
+          if (!s.polls[id]) return {}
+          const latest = { ...s.latest, [id]: message.data }
+          if (!message.data.ok) return { latest }
+          return { latest, cells: { ...s.cells, [id]: message.data.cells } }
+        }
+        case 'connection':
+          return { connections: { ...s.connections, [message.data.config.id]: message.data } }
+        default:
+          return {}
+      }
+    }),
+}))

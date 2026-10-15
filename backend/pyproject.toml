@@ -1,0 +1,69 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "modbus-studio"
+version = "0.1.0.dev0"
+description = "Open-source Modbus master for polling, monitoring and testing Modbus TCP/RTU devices from the browser."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "modbus-studio contributors" }]
+keywords = ["modbus", "modbus-tcp", "modbus-rtu", "scada", "plc", "industrial", "iot"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Framework :: FastAPI",
+    "Intended Audience :: Manufacturing",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Hardware",
+]
+dependencies = [
+    "pymodbus[serial]>=3.16,<4",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[project.scripts]
+modbus-studio = "modbus_studio.main:run"
+modbus-studio-sim = "modbus_studio.simulator:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/modbus_studio"]
+# The compiled frontend is copied into src/modbus_studio/static by the build.
+artifacts = ["src/modbus_studio/static/**"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning:pymodbus.*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "ASYNC", "RUF"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+mypy_path = "src"
+packages = ["modbus_studio"]
+
+[[tool.mypy.overrides]]
+module = ["pymodbus.*"]
+ignore_missing_imports = true

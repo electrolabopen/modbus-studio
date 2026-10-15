@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "connections": [
+    {
+      "type": "tcp",
+      "id": "simulator",
+      "name": "Simulator (compose)",
+      "host": "simulator",
+      "port": 5020,
+      "timeout_s": 1.0
+    }
+  ],
+  "polls": [
+    {
+      "id": "demo",
+      "name": "Demo: holding registers 0-9",
+      "connection_id": "simulator",
+      "device_id": 1,
+      "function": 3,
+      "address": 0,
+      "quantity": 10,
+      "scan_rate_ms": 1000
+    }
+  ]
+}
