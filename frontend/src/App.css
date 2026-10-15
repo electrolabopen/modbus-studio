@@ -591,3 +591,101 @@ select:focus,
   display: block;
   color: var(--text-muted);
 }
+
+/* -- traffic monitor ----------------------------------------------------- */
+
+.traffic {
+  display: flex;
+  flex-direction: column;
+  height: 45%;
+  min-height: 180px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.traffic-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.traffic-bar h2 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.traffic-bar select,
+.traffic-bar input:not([type='checkbox']) {
+  padding: 1px 4px;
+  font-size: 12px;
+}
+
+.traffic-bar input.narrow {
+  width: 6ch;
+}
+
+.traffic-bar .grow {
+  margin-left: auto;
+}
+
+.traffic-counts {
+  padding: 3px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.traffic-counts .bad {
+  color: var(--danger);
+}
+
+.traffic-list {
+  flex: 1;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.traffic-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.traffic-list th,
+.traffic-list td {
+  padding: 1px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.traffic-list th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.traffic-list td.hex {
+  white-space: normal;
+  word-break: break-all;
+}
+
+.traffic-list .tx td.dir {
+  color: var(--accent);
+}
+
+.traffic-list .rx td.dir {
+  color: var(--warning);
+}
+
+.traffic-list tr.problem td {
+  color: var(--danger);
+}
+
+.paused-note {
+  color: var(--warning);
+}

@@ -1,4 +1,4 @@
-import type { Cell, PollData, PollStats, PollView } from '../api/types'
+import type { Cell, PollData, PollStats, PollView, TrafficEntry } from '../api/types'
 import { DEFAULT_FORMAT } from '../api/types'
 
 export const stats = (polls: number, errors = 0): PollStats => ({
@@ -85,3 +85,18 @@ export class FakeWebSocket {
     this.onmessage?.({ data: JSON.stringify(message) })
   }
 }
+
+/** A captured frame; odd seq numbers are TX, even ones RX. */
+export const frame = (seq: number, over: Partial<TrafficEntry> = {}): TrafficEntry => ({
+  seq,
+  timestamp: 1000 + seq / 100,
+  connection_id: 'c1',
+  direction: seq % 2 ? 'tx' : 'rx',
+  hex: '00 01 00 00 00 06 01 03 00 00 00 0A',
+  device_id: 1,
+  function: 3,
+  exception_code: null,
+  transaction_id: 1,
+  error: null,
+  ...over,
+})

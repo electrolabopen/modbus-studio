@@ -59,6 +59,13 @@ class TrafficEntryView(BaseModel):
     connection_id: str
     direction: Literal["tx", "rx"]
     hex: str
+    # What the monitor can tell from the frame header (None when it cannot).
+    device_id: int | None = None
+    function: int | None = None
+    exception_code: int | None = None
+    transaction_id: int | None = None
+    # A problem with the frame itself (bad CRC, wrong MBAP length, too short).
+    error: str | None = None
 
 
 class WindowWrite(BaseModel):

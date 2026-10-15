@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from ..models.connection import ConnectionConfig
+from ..models.connection import ConnectionConfig, TcpConnection
 from ..models.format import RegisterFormatModel
 from ..models.poll import PollDefinition, ReadFunction
 from ..models.views import (
@@ -39,6 +39,7 @@ from .connection import (
     RequestError,
     default_client_factory,
 )
+from .frames import FrameInfo, describe
 from .poller import PollManager, PollResult, PollTask
 from .registermap import MapError, RegisterMapError, parse_register_map
 from .traffic import TrafficEntry, TrafficLog
@@ -543,14 +544,25 @@ class Studio:
 
     # -- traffic -----------------------------------------------------------
 
-    @staticmethod
-    def traffic_view(entry: TrafficEntry) -> TrafficEntryView:
+    def traffic_view(self, entry: TrafficEntry) -> TrafficEntryView:
+        info = FrameInfo()
+        try:
+            config = self.connections.get(entry.connection_id).config
+        except KeyError:  # the connection was removed; its frames stay in the log
+            pass
+        else:
+            info = describe(entry.data, "tcp" if isinstance(config, TcpConnection) else "rtu")
         return TrafficEntryView(
             seq=entry.seq,
             timestamp=entry.timestamp,
             connection_id=entry.connection_id,
             direction=entry.direction.value,
             hex=entry.hex,
+            device_id=info.device_id,
+            function=info.function,
+            exception_code=info.exception_code,
+            transaction_id=info.transaction_id,
+            error=info.error,
         )
 
     def list_traffic(

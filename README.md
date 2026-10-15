@@ -31,7 +31,8 @@ network and open it from any browser.
 | ✅ | Read-only connections | done |
 | ✅ | Per-cell and per-range formats, aliases edited in the table | done |
 | ✅ | JSON workspaces (autosave, import, export), CSV register maps | done |
-| ⏳ | Traffic monitor panel, real-time chart | phase 5 |
+| ✅ | Traffic monitor with filters, pause, counters and CSV export | done |
+| ⏳ | Real-time chart | phase 5 |
 | ⏳ | Export to InfluxDB, publish over MQTT | phase 7 |
 | ✅ | REST API + WebSocket (the UI uses the same API) | done, OpenAPI at `/docs` |
 | ⏳ | `pip install`, multi-arch Docker image (amd64/arm64) | phase 8 |

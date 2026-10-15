@@ -7,6 +7,7 @@ import type {
   WindowWrite,
   WriteLogEntry,
   Workspace,
+  TrafficEntry,
   WritePlan,
 } from './types'
 
@@ -128,6 +129,8 @@ export const api = {
       `/workspace?mode=${mode}`,
       json('POST', workspace),
     ),
+  listTraffic: (limit = 1000) => request<TrafficEntry[]>(`/traffic?limit=${limit}`),
+  clearTraffic: () => request<void>('/traffic', { method: 'DELETE' }),
   listWrites: (limit = 200) => request<WriteLogEntry[]>(`/writes?limit=${limit}`),
   write: (id: string, req: WindowWrite) =>
     request<WritePlan>(`/polls/${encodeURIComponent(id)}/write`, json('POST', req)),

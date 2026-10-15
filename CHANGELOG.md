@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Added
+- Traffic monitor (**Traffic** in the toolbar): live TX/RX frames with time, connection,
+  device, function, response time and a description of exception responses and
+  malformed frames (bad RTU CRC, wrong MBAP length, short frames). Filters by
+  connection, direction, device, function, hex bytes and "errors only"; pause keeps the
+  view and counts new frames; TX/RX/exception/malformed counters; CSV export of the
+  filtered frames; clear. Frames are only streamed while the monitor is open.
 - Workspace export and import from the UI (**Export**, **Import…**): replace the session or
   merge into it; `GET /api/workspace`, `POST /api/workspace?mode=replace|merge`. Files
   are validated before anything is touched; merging refuses ids already in use.
@@ -46,6 +52,9 @@
   out, with a hint when `127.0.0.1` is used inside a container. Shown in the sidebar.
 
 ### Fixed
+- Stopping a polling window (and so shutting down the app) could hang forever on
+  Python < 3.12: `asyncio.wait_for`, used by pymodbus for every response, can swallow a
+  cancellation. This hung the py3.10 CI job intermittently. CI jobs now have time limits.
 - Log messages from modbus-studio itself (below WARNING) were never printed.
 - The simulator ignored SIGTERM in Docker and was killed after 10 s.
 - `docker compose up --wait` failed because the simulator had no healthcheck.

@@ -119,8 +119,25 @@ export type ServerMessage =
   | { type: 'snapshot'; connections: ConnectionView[]; polls: PollView[] }
   | { type: 'poll'; data: PollData }
   | { type: 'connection'; data: ConnectionView }
-  | { type: 'traffic'; data: unknown }
+  | { type: 'traffic'; data: TrafficEntry }
   | { type: 'write'; data: WriteLogEntry }
+
+/** One captured frame. Header fields are null when the frame is too short to tell. */
+export interface TrafficEntry {
+  seq: number
+  /** Unix time in seconds. */
+  timestamp: number
+  connection_id: string
+  direction: 'tx' | 'rx'
+  /** Bytes as upper-case hex pairs separated by spaces. */
+  hex: string
+  device_id: number | null
+  function: number | null
+  exception_code: number | null
+  transaction_id: number | null
+  /** Problem with the frame itself: bad CRC, wrong MBAP length, too short. */
+  error: string | null
+}
 
 /** Connections and windows of a session, as exported to / imported from JSON. */
 export interface Workspace {

@@ -210,7 +210,7 @@ async def clear_traffic(studio: StudioDep) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# -- error mapping ------------------------------------------------------------
+# -- register maps, workspace, write log ----------------------------------------
 
 
 @router.post(
@@ -253,6 +253,9 @@ async def list_writes(
     studio: StudioDep, limit: Annotated[int, Query(ge=1, le=500)] = 200
 ) -> list[WriteLogEntry]:
     return studio.write_log.entries(limit)
+
+
+# -- error mapping ------------------------------------------------------------
 
 
 def install_error_handlers(app: FastAPI) -> None:

@@ -5,10 +5,13 @@ import type {
   PollData,
   PollView,
   ServerMessage,
+  TrafficEntry,
   WriteLogEntry,
 } from './api/types'
 
 const MAX_WRITES = 200
+/** Frames kept in the browser; matches the server's default traffic buffer. */
+export const MAX_FRAMES = 5000
 
 export type LinkState = 'connecting' | 'open' | 'closed' | 'unauthorized'
 
@@ -23,6 +26,9 @@ interface StudioState {
   /** Write log, newest first. */
   writes: WriteLogEntry[]
   setWrites: (entries: WriteLogEntry[]) => void
+  /** Raw frames received while the traffic monitor is open, oldest first. */
+  traffic: TrafficEntry[]
+  setTraffic: (entries: TrafficEntry[]) => void
   setLink: (link: LinkState) => void
   handle: (message: ServerMessage) => void
   upsertPoll: (view: PollView) => void
@@ -37,6 +43,8 @@ export const useStudio = create<StudioState>()((set) => ({
   latest: {},
   writes: [],
   setWrites: (entries) => set({ writes: entries.slice(0, MAX_WRITES) }),
+  traffic: [],
+  setTraffic: (entries) => set({ traffic: entries.slice(-MAX_FRAMES) }),
   setLink: (link) => set({ link }),
   upsertPoll: (view) =>
     set((s) => ({ polls: { ...s.polls, [view.definition.id]: view } })),
@@ -73,6 +81,14 @@ export const useStudio = create<StudioState>()((set) => ({
         }
         case 'connection':
           return { connections: { ...s.connections, [message.data.config.id]: message.data } }
+        case 'traffic': {
+          const last = s.traffic[s.traffic.length - 1]
+          if (last && message.data.seq === last.seq) return {}
+          // Sequence numbers restart with the server: start a new list.
+          if (last && message.data.seq < last.seq) return { traffic: [message.data] }
+          const traffic = [...s.traffic, message.data]
+          return { traffic: traffic.length > MAX_FRAMES ? traffic.slice(-MAX_FRAMES) : traffic }
+        }
         case 'write':
           if (s.writes.some((w) => w.seq === message.data.seq)) return {}
           return { writes: [message.data, ...s.writes].slice(0, MAX_WRITES) }

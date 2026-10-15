@@ -7,8 +7,10 @@ import { Field, Modal } from './components/Modal'
 import { PollDialog } from './components/PollDialog'
 import { PollWindow } from './components/PollWindow'
 import { Sidebar } from './components/Sidebar'
+import { TrafficPanel } from './components/TrafficPanel'
 import { WriteLogPanel } from './components/WriteLogPanel'
 import { useStudio, type LinkState } from './store'
+import { downloadText, fileTimestamp } from './util'
 import './App.css'
 
 type BackendState =
@@ -20,7 +22,7 @@ export default function App() {
   const [backend, setBackend] = useState<BackendState>({ kind: 'loading' })
   const [tokenNeeded, setTokenNeeded] = useState(false)
   const [linkKey, setLinkKey] = useState(0)
-  const [logOpen, setLogOpen] = useState(false)
+  const [panel, setPanel] = useState<Panel | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -52,8 +54,8 @@ export default function App() {
         <span className="brand">modbus-studio</span>
         <Toolbar
           enabled={online && link === 'open'}
-          logOpen={logOpen}
-          onToggleLog={() => setLogOpen((open) => !open)}
+          panel={panel}
+          onTogglePanel={(p) => setPanel((open) => (open === p ? null : p))}
         />
         <div className="topbar-right">
           <LinkBadge backend={backend} link={link} />
@@ -63,7 +65,8 @@ export default function App() {
         <Sidebar />
         <div className="content">
           <Workspace />
-          {logOpen && <WriteLogPanel onClose={() => setLogOpen(false)} />}
+          {panel === 'traffic' && <TrafficPanel onClose={() => setPanel(null)} />}
+          {panel === 'writes' && <WriteLogPanel onClose={() => setPanel(null)} />}
         </div>
       </div>
       {askToken && (
@@ -79,13 +82,15 @@ export default function App() {
   )
 }
 
+type Panel = 'traffic' | 'writes'
+
 interface ToolbarProps {
   enabled: boolean
-  logOpen: boolean
-  onToggleLog: () => void
+  panel: Panel | null
+  onTogglePanel: (panel: Panel) => void
 }
 
-function Toolbar({ enabled, logOpen, onToggleLog }: ToolbarProps) {
+function Toolbar({ enabled, panel, onTogglePanel }: ToolbarProps) {
   const hasConnections = useStudio((s) => Object.keys(s.connections).length > 0)
   const [dialog, setDialog] = useState<'connection' | 'poll' | null>(null)
   const [importFile, setImportFile] = useState<File | null>(null)
@@ -96,14 +101,11 @@ function Toolbar({ enabled, logOpen, onToggleLog }: ToolbarProps) {
     setError(null)
     try {
       const workspace = await api.exportWorkspace()
-      const blob = new Blob([JSON.stringify(workspace, null, 2) + '\n'], {
-        type: 'application/json',
-      })
-      const link = document.createElement('a')
-      link.href = URL.createObjectURL(blob)
-      link.download = `modbus-studio-workspace-${timestamp()}.json`
-      link.click()
-      URL.revokeObjectURL(link.href)
+      downloadText(
+        `modbus-studio-workspace-${fileTimestamp()}.json`,
+        JSON.stringify(workspace, null, 2) + '\n',
+        'application/json',
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -139,7 +141,20 @@ function Toolbar({ enabled, logOpen, onToggleLog }: ToolbarProps) {
           e.target.value = ''
         }}
       />
-      <button className="btn" aria-pressed={logOpen} disabled={!enabled} onClick={onToggleLog}>
+      <button
+        className="btn"
+        aria-pressed={panel === 'traffic'}
+        disabled={!enabled}
+        onClick={() => onTogglePanel('traffic')}
+      >
+        Traffic
+      </button>
+      <button
+        className="btn"
+        aria-pressed={panel === 'writes'}
+        disabled={!enabled}
+        onClick={() => onTogglePanel('writes')}
+      >
         Write log
       </button>
       {error && (
@@ -154,12 +169,6 @@ function Toolbar({ enabled, logOpen, onToggleLog }: ToolbarProps) {
       {dialog === 'poll' && <PollDialog onClose={() => setDialog(null)} />}
     </div>
   )
-}
-
-const pad = (n: number) => String(n).padStart(2, '0')
-
-function timestamp(d = new Date()): string {
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`
 }
 
 function Workspace() {
