@@ -12,9 +12,15 @@ Do not contribute code, decompiled logic, icons, screenshots, documentation text
 copy taken from proprietary Modbus tools. Matching a common workflow is fine; copying an
 implementation or its assets is not.
 
+## Reporting issues
+
+Open an issue at <https://github.com/electrolabopen/modbus-studio/issues>. For a protocol problem, include the device, the
+connection type and the TX/RX frames from the traffic monitor.
+
 ## Development setup
 
 ```bash
+git clone https://github.com/electrolabopen/modbus-studio.git && cd modbus-studio
 cd backend && python -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]"
 cd frontend && npm install
 ```
@@ -39,3 +45,4 @@ and no Docker.
 - Write tests against reference values derived by hand from the spec, not values
   produced by the code under test.
 - Use conventional commit messages (`feat:`, `fix:`, `docs:`…).
+- Open pull requests against `main` on <https://github.com/electrolabopen/modbus-studio>; CI must be green.

@@ -2,6 +2,17 @@
   "name": "modbus-studio-frontend",
   "private": true,
   "version": "0.0.0",
+  "description": "Browser UI of modbus-studio",
+  "homepage": "https://github.com/electrolabopen/modbus-studio",
+  "bugs": {
+    "url": "https://github.com/electrolabopen/modbus-studio/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/electrolabopen/modbus-studio.git",
+    "directory": "frontend"
+  },
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -1,5 +1,9 @@
 # modbus-studio
 
+[![CI](https://github.com/electrolabopen/modbus-studio/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/electrolabopen/modbus-studio/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Container image](https://img.shields.io/badge/image-ghcr.io-2496ED?logo=docker&logoColor=white)](https://github.com/electrolabopen/modbus-studio/pkgs/container/modbus-studio)
+
 An open-source Modbus master that runs in your browser. It polls Modbus TCP, RTU and
 RTU-over-TCP devices, decodes their registers into engineering values, writes coils and
 registers, and shows every frame on the wire. It is written from scratch from the public
@@ -7,8 +11,8 @@ Modbus specification. Run it on your laptop, or on a gateway or Raspberry Pi on 
 network and open it from any browser.
 
 > **Status: pre-alpha.** The Modbus core, the REST API and the WebSocket are done and
-> tested. The UI can already create connections and polling windows and shows live
-> values. See the [roadmap](docs/ROADMAP.md).
+> tested. The UI creates connections and polling windows, shows live values and writes
+> coils and registers with a confirmation dialog. See the [roadmap](docs/ROADMAP.md).
 
 ## Features
 
@@ -23,7 +27,8 @@ network and open it from any browser.
 | ✅ | Raw TX/RX frame capture, error counters per window | core done |
 | ✅ | Optional API token, binds to 127.0.0.1 by default | done |
 | 🟡 | Multiple polling windows in the UI, each with its own scan rate | basic version done |
-| ⏳ | Write by double-clicking a cell, aliases, JSON workspaces, CSV register maps | phase 4 |
+| 🟡 | Write by double-clicking a cell (with confirmation), read-only connections, workspace autosave | done |
+| ⏳ | Per-cell formats and aliases in the table, JSON workspace import/export, CSV register maps | phase 4 |
 | ⏳ | Traffic monitor panel, real-time chart | phase 5 |
 | ⏳ | Export to InfluxDB, publish over MQTT | phase 7 |
 | ✅ | REST API + WebSocket (the UI uses the same API) | done, OpenAPI at `/docs` |
@@ -38,6 +43,8 @@ Coming with the first UI milestone (phase 3).
 ### Docker (app + simulator)
 
 ```bash
+git clone https://github.com/electrolabopen/modbus-studio.git
+cd modbus-studio
 docker compose up --build
 ```
 
@@ -66,11 +73,26 @@ python docker/smoke_test.py      # app -> simulator through the compose network
 python docker/smoke_test.py persist-write && docker compose restart modbus-studio   && python docker/smoke_test.py persist-check   # the workspace survives a restart
 ```
 
+### Docker image
+
+Multi-arch images (`linux/amd64`, `linux/arm64`) will be published to
+[`ghcr.io/electrolabopen/modbus-studio`](https://github.com/electrolabopen/modbus-studio/pkgs/container/modbus-studio) from release 0.1:
+
+```bash
+docker run -d --name modbus-studio -p 127.0.0.1:8000:8000 \
+  -v modbus-studio-data:/data ghcr.io/electrolabopen/modbus-studio:latest
+```
+
+Until then, build it locally with `docker compose build`.
+
 ### From source
 
 Requires Python ≥ 3.10 and Node ≥ 20.
 
 ```bash
+git clone https://github.com/electrolabopen/modbus-studio.git
+cd modbus-studio
+
 # backend
 cd backend
 python -m venv .venv
@@ -145,7 +167,8 @@ For 64-bit values the same two operations apply to all four words.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). This is a clean-room project: please do not
+See [CONTRIBUTING.md](CONTRIBUTING.md). Bugs and feature requests go to the
+[issue tracker](https://github.com/electrolabopen/modbus-studio/issues). This is a clean-room project: please do not
 contribute code, screenshots, icons or text taken from proprietary Modbus tools.
 
 ## License and disclaimer

@@ -14,7 +14,7 @@ default and has an optional bearer token.
 | **5. Traffic monitor + chart** | TX/RX hex panel with filter, pause and export; uPlot chart of selected registers | Frames visible live; the simulator sine wave plotted | |
 | **6. RTU on real hardware** | Serial port discovery, `docs/rtu-linux.md` (dialout, udev, `/dev/serial/by-id`, RS-485 adapters, Docker `--device`) | Tested with socat ptys in CI and with a real USB-RS485 adapter | |
 | **7. Integrations** | InfluxDB and MQTT exporters with configurable mapping, optional compose profiles for InfluxDB and Mosquitto | Data in InfluxDB/Grafana and in `mosquitto_sub` | |
-| **8. Release 0.1** | README with screenshots and a GIF, docs, PyPI package, **multi-arch image `linux/amd64` + `linux/arm64` on GHCR** | `pip install modbus-studio` works on Linux, Windows and macOS; `docker run` works on x86 and on a Raspberry Pi 4/5 (64-bit OS) | |
+| **8. Release 0.1** | README with screenshots and a GIF, docs, PyPI package, **multi-arch image `linux/amd64` + `linux/arm64` on GHCR (`ghcr.io/electrolabopen/modbus-studio`)** | `pip install modbus-studio` works on Linux, Windows and macOS; `docker run` works on x86 and on a Raspberry Pi 4/5 (64-bit OS) | |
 
 ## CSV register map format (phase 4)
 

@@ -10,6 +10,11 @@ COPY frontend/ ./
 RUN npm run build
 
 FROM python:3.12-slim AS runtime
+LABEL org.opencontainers.image.title="modbus-studio" \
+      org.opencontainers.image.description="Open-source Modbus master in the browser (TCP, RTU, RTU over TCP)" \
+      org.opencontainers.image.source="https://github.com/electrolabopen/modbus-studio" \
+      org.opencontainers.image.url="https://github.com/electrolabopen/modbus-studio" \
+      org.opencontainers.image.licenses="MIT"
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \

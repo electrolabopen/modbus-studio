@@ -27,6 +27,13 @@ dependencies = [
     "pydantic-settings>=2.3",
 ]
 
+[project.urls]
+Homepage = "https://github.com/electrolabopen/modbus-studio"
+Repository = "https://github.com/electrolabopen/modbus-studio.git"
+Issues = "https://github.com/electrolabopen/modbus-studio/issues"
+Changelog = "https://github.com/electrolabopen/modbus-studio/blob/main/CHANGELOG.md"
+Container = "https://github.com/electrolabopen/modbus-studio/pkgs/container/modbus-studio"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8",

@@ -10,4 +10,6 @@ modbus-studio            # http://127.0.0.1:8000
 modbus-studio-sim        # slave simulator: TCP :5020, RTU over TCP :5021
 ```
 
-See the repository README for documentation. Not affiliated with Witte Software.
+Documentation, Docker image and issue tracker: <https://github.com/electrolabopen/modbus-studio>.
+
+modbus-studio is an independent project, not affiliated with Witte Software.

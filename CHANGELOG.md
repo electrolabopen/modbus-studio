@@ -45,3 +45,5 @@
 - Raw TX/RX frame capture for the traffic monitor.
 - Optional bearer token for the API; the server binds to 127.0.0.1 by default.
 - `modbus-studio-sim`: simulator with time-varying registers, served over TCP and RTU over TCP.
+
+[Unreleased]: https://github.com/electrolabopen/modbus-studio/commits/main
