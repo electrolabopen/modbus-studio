@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { api } from '../api/client'
 import {
   BYTE_ORDERS,
@@ -10,6 +10,7 @@ import {
   type PollView,
 } from '../api/types'
 import { useStudio } from '../store'
+import { FormatDialog } from './FormatDialog'
 import { PollDialog } from './PollDialog'
 import { WriteDialog } from './WriteDialog'
 
@@ -28,6 +29,17 @@ function errorText(data: PollData): string {
   }
 }
 
+/** Address of the cell that displays ``address`` (itself, or the 32/64-bit value covering it). */
+const ownerOf = (cells: Cell[], address: number) =>
+  cells.find((c) => c.address === address)?.covered_by ?? address
+
+/** Last register of the value that starts at ``address``. */
+function lastRegisterOf(cells: Cell[], address: number): number {
+  let last = address
+  for (const c of cells) if (c.covered_by === address) last = Math.max(last, c.address)
+  return last
+}
+
 export function PollWindow({ view }: { view: PollView }) {
   const def = view.definition
   const latest = useStudio((s) => s.latest[def.id])
@@ -36,6 +48,9 @@ export function PollWindow({ view }: { view: PollView }) {
   const connection = useStudio((s) => s.connections[def.connection_id])
   const [editing, setEditing] = useState(false)
   const [writing, setWriting] = useState<Cell | null>(null)
+  const [formatting, setFormatting] = useState<{ start: number; end: number } | null>(null)
+  const [aliasEditing, setAliasEditing] = useState<number | null>(null)
+  const [selection, setSelection] = useState<{ anchor: number; focus: number } | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const stats = latest?.stats ?? view.stats
@@ -44,6 +59,15 @@ export function PollWindow({ view }: { view: PollView }) {
   const readOnly = connection?.config.read_only ?? false
   // FC02/FC04 data cannot be written by any Modbus function.
   const writable = (def.function === 1 || def.function === 3) && !readOnly
+
+  // A selection always covers whole values: never half of a 32/64-bit register pair.
+  const selected = selection && {
+    start: ownerOf(cells, Math.min(selection.anchor, selection.focus)),
+    end: lastRegisterOf(
+      cells,
+      ownerOf(cells, Math.max(selection.anchor, selection.focus)),
+    ),
+  }
 
   const run = async (action: () => Promise<PollView | void>) => {
     setActionError(null)
@@ -75,6 +99,24 @@ export function PollWindow({ view }: { view: PollView }) {
     setWriting(first)
   }
 
+  const openFormat = (address: number) => {
+    if (isBit) return
+    const start = ownerOf(cells, address)
+    setSelection({ anchor: start, focus: start })
+    setFormatting({ start, end: start })
+  }
+
+  const saveAlias = (address: number, alias: string) => {
+    setAliasEditing(null)
+    if (alias === (def.formats[address]?.alias ?? '')) return
+    run(() => api.patchFormats(def.id, { start: address, end: address, alias }))
+  }
+
+  const select = (address: number, extend: boolean) =>
+    setSelection((s) =>
+      extend && s ? { anchor: s.anchor, focus: address } : { anchor: address, focus: address },
+    )
+
   const setFormat = (patch: { dtype?: DataType; order?: ByteOrder }) =>
     run(() =>
       api.updatePoll(def.id, { ...def, default_format: { ...def.default_format, ...patch } }),
@@ -89,6 +131,7 @@ export function PollWindow({ view }: { view: PollView }) {
             <>
               <select
                 aria-label="Display format"
+                title="Window default format"
                 value={def.default_format.dtype}
                 onChange={(e) => setFormat({ dtype: e.target.value as DataType })}
               >
@@ -100,6 +143,7 @@ export function PollWindow({ view }: { view: PollView }) {
               </select>
               <select
                 aria-label="Byte order"
+                title="Window default byte order"
                 value={def.default_format.order}
                 onChange={(e) => setFormat({ order: e.target.value as ByteOrder })}
               >
@@ -107,6 +151,18 @@ export function PollWindow({ view }: { view: PollView }) {
                   <option key={o}>{o}</option>
                 ))}
               </select>
+              <button
+                className="btn btn-small"
+                disabled={!selected}
+                title={
+                  selected
+                    ? `Format addresses ${selected.start}–${selected.end}`
+                    : 'Select rows first (Shift+click selects a range)'
+                }
+                onClick={() => selected && setFormatting(selected)}
+              >
+                Format…
+              </button>
             </>
           )}
           <button className="btn btn-small" onClick={() => run(() => api.resetPoll(def.id))}>
@@ -137,41 +193,108 @@ export function PollWindow({ view }: { view: PollView }) {
         <table className="poll-table mono">
           <thead>
             <tr>
-              <th>Address</th>
-              <th>Alias</th>
-              <th>Value</th>
+              <th title={isBit ? undefined : 'Double-click: cell format'}>Address</th>
+              <th title="Double-click to edit">Alias</th>
+              <th title={writable ? 'Double-click to write' : undefined}>Value</th>
             </tr>
           </thead>
           <tbody>
-            {cells.map((c) => (
-              <tr
-                key={c.address}
-                className={
-                  [c.covered_by !== null && 'covered', writable && 'writable']
-                    .filter(Boolean)
-                    .join(' ') || undefined
-                }
-                onDoubleClick={() => openWrite(c)}
-              >
-                <td className="addr">{c.address}</td>
-                <td className="alias">{c.alias}</td>
-                <td
-                  className="value"
-                  title={
-                    c.error ?? `raw: ${c.raw.join(' ')}${writable ? ' · double-click to write' : ''}`
-                  }
+            {cells.map((c) => {
+              const isSelected =
+                selected !== null && c.address >= selected.start && c.address <= selected.end
+              const classes = [
+                c.covered_by !== null && 'covered',
+                writable && 'writable',
+                isSelected && 'selected',
+              ]
+              const alias = c.covered_by === null ? (def.formats[c.address]?.alias ?? c.alias) : ''
+              return (
+                <tr
+                  key={c.address}
+                  className={classes.filter(Boolean).join(' ') || undefined}
+                  aria-selected={isSelected}
+                  onClick={(e) => select(c.address, e.shiftKey)}
                 >
-                  {c.text}
-                  {c.unit && <span className="unit"> {c.unit}</span>}
-                </td>
-              </tr>
-            ))}
+                  <td className="addr" onDoubleClick={() => openFormat(c.address)}>
+                    {c.address}
+                  </td>
+                  <td
+                    className="alias"
+                    onDoubleClick={() => setAliasEditing(ownerOf(cells, c.address))}
+                  >
+                    {aliasEditing === c.address ? (
+                      <AliasEditor
+                        initial={alias}
+                        onSave={(value) => saveAlias(c.address, value)}
+                        onCancel={() => setAliasEditing(null)}
+                      />
+                    ) : (
+                      alias
+                    )}
+                  </td>
+                  <td
+                    className="value"
+                    title={
+                      c.error ?? `raw: ${c.raw.join(' ')}${writable ? ' · double-click to write' : ''}`
+                    }
+                    onDoubleClick={() => openWrite(c)}
+                  >
+                    {c.text}
+                    {c.unit && <span className="unit"> {c.unit}</span>}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
 
       {editing && <PollDialog existing={view} onClose={() => setEditing(false)} />}
       {writing && <WriteDialog view={view} cell={writing} onClose={() => setWriting(null)} />}
+      {formatting && (
+        <FormatDialog
+          view={view}
+          start={formatting.start}
+          end={formatting.end}
+          onClose={() => setFormatting(null)}
+        />
+      )}
     </section>
+  )
+}
+
+function AliasEditor({
+  initial,
+  onSave,
+  onCancel,
+}: {
+  initial: string
+  onSave: (alias: string) => void
+  onCancel: () => void
+}) {
+  const [value, setValue] = useState(initial)
+  // Enter and the blur that follows it must not save twice.
+  const done = useRef(false)
+  const finish = (save: boolean) => {
+    if (done.current) return
+    done.current = true
+    if (save) onSave(value.trim())
+    else onCancel()
+  }
+  return (
+    <input
+      className="alias-input"
+      aria-label="Alias"
+      autoFocus
+      maxLength={64}
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') finish(true)
+        else if (e.key === 'Escape') finish(false)
+      }}
+      onBlur={() => finish(true)}
+    />
   )
 }

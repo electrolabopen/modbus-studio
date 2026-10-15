@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import math
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from ..core.codec import ByteOrder, DataType
 from .connection import ConnectionConfig
 from .poll import PollDefinition
 
@@ -66,6 +68,34 @@ class WindowWrite(BaseModel):
     value: bool | int | float
     # Use FC15/FC16 even for a single coil/register (some devices lack FC05/FC06).
     force_multiple: bool = False
+
+
+class FormatPatch(BaseModel):
+    """Change how the cells ``start``..``end`` (inclusive) of a window are displayed.
+
+    Fields left out keep each cell's current value, so a range can get a new unit
+    without losing per-cell data types. ``reset`` returns the range to the window's
+    default format.
+    """
+
+    start: int = Field(ge=0, le=0xFFFF)
+    end: int = Field(ge=0, le=0xFFFF)
+    dtype: DataType | None = None
+    order: ByteOrder | None = None
+    scale: float | None = None
+    unit: str | None = Field(default=None, max_length=32)
+    alias: str | None = Field(default=None, max_length=64)
+    reset: bool = False
+
+    @model_validator(mode="after")
+    def _check(self) -> FormatPatch:
+        if self.end < self.start:
+            raise ValueError("end must not be before start")
+        if self.scale is not None and (not math.isfinite(self.scale) or self.scale == 0):
+            raise ValueError("scale must be a finite, non-zero number")
+        if self.alias is not None and self.end != self.start:
+            raise ValueError("an alias names one cell: start and end must be equal")
+        return self
 
 
 class WritePlan(BaseModel):

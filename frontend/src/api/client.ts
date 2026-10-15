@@ -1,6 +1,7 @@
 import type {
   ConnectionConfig,
   ConnectionView,
+  FormatPatch,
   PollDefinition,
   PollView,
   WindowWrite,
@@ -105,6 +106,8 @@ export const api = {
     request<PollView>(`/polls/${encodeURIComponent(id)}`, json('PUT', definition)),
   deletePoll: (id: string) =>
     request<void>(`/polls/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  patchFormats: (id: string, patch: FormatPatch) =>
+    request<PollView>(`/polls/${encodeURIComponent(id)}/formats`, json('PATCH', patch)),
   resetPoll: (id: string) =>
     request<PollView>(`/polls/${encodeURIComponent(id)}/reset`, { method: 'POST' }),
   previewWrite: (id: string, req: WindowWrite, signal?: AbortSignal) =>

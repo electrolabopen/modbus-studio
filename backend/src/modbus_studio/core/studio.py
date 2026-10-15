@@ -13,6 +13,7 @@ from ..models.poll import PollDefinition, ReadFunction
 from ..models.views import (
     Cell,
     ConnectionView,
+    FormatPatch,
     PollData,
     PollView,
     RawWrite,
@@ -27,6 +28,7 @@ from .codec import (
     decode_table,
     format_value,
     from_engineering,
+    register_count,
     to_engineering,
 )
 from .connection import ClientFactory, Connection, ConnectionManager, default_client_factory
@@ -227,6 +229,62 @@ class Studio:
         self._task(poll_id)
         await self.polls.remove(poll_id)
         self._changed()
+
+    @staticmethod
+    def _cell_owners(d: PollDefinition) -> dict[int, int]:
+        """Map every address of a window to the address of the cell that shows it.
+
+        Mirrors ``decode_table``: a 32/64-bit value covers the registers after it.
+        """
+        owners: dict[int, int] = {}
+        address, end = d.address, d.address + d.quantity
+        while address < end:
+            fmt = d.formats.get(address, d.default_format)
+            count = 1 if d.function.is_bit else register_count(fmt.dtype)
+            for covered in range(address, min(address + count, end)):
+                owners[covered] = address
+            address += count
+        return owners
+
+    async def apply_format(self, poll_id: str, patch: FormatPatch) -> PollView:
+        """Set data type, byte order, scale, unit or alias on a range of cells."""
+        d = self._task(poll_id).definition
+        last = d.address + d.quantity - 1
+        if not d.address <= patch.start <= patch.end <= last:
+            raise InvalidRequestError(f"range {patch.start}-{patch.end} is outside this window")
+        changes = patch.model_dump(
+            exclude_none=True, include={"dtype", "order", "scale", "unit", "alias"}
+        )
+        if d.function.is_bit and set(changes) - {"alias"}:
+            raise InvalidRequestError("coils and discrete inputs only take an alias")
+        owner = self._cell_owners(d)[patch.start]
+        if owner != patch.start:
+            raise InvalidRequestError(
+                f"address {patch.start} is part of the value at {owner}; start the range there"
+            )
+
+        formats = dict(d.formats)
+        if patch.reset:
+            for address in range(patch.start, patch.end + 1):
+                formats.pop(address, None)
+        else:
+            address = patch.start
+            while address <= patch.end:
+                fmt = formats.get(address, d.default_format).model_copy(update=changes)
+                count = 1 if d.function.is_bit else register_count(fmt.dtype)
+                if address + count - 1 > last:
+                    raise InvalidRequestError(
+                        f"{fmt.dtype.value} at {address} needs registers up to "
+                        f"{address + count - 1}, past the end of the window ({last})"
+                    )
+                formats[address] = fmt
+                # The registers it now covers no longer start a cell of their own.
+                for covered in range(address + 1, address + count):
+                    formats.pop(covered, None)
+                address += count
+        # Entries equal to the window default add nothing; keep the workspace tidy.
+        formats = {a: f for a, f in formats.items() if f != d.default_format}
+        return await self.update_poll(d.model_copy(update={"formats": formats}))
 
     def reset_poll_stats(self, poll_id: str) -> PollView:
         self._task(poll_id).reset_stats()

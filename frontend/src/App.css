@@ -225,15 +225,18 @@ select:focus,
 
 .poll-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   padding: 6px 8px;
   background: var(--surface-2);
   border-bottom: 1px solid var(--border);
 }
 
 .poll-header h3 {
-  flex: 1;
+  /* Keep the title readable: the actions wrap to a second line instead. */
+  flex: 1 1 10ch;
+  min-width: 10ch;
   margin: 0;
   font-size: 13px;
   font-weight: 600;
@@ -244,7 +247,10 @@ select:focus,
 
 .poll-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 4px;
+  margin-left: auto;
 }
 
 .poll-actions select {
@@ -459,4 +465,29 @@ select:focus,
   margin: 10px 0 0;
   color: var(--warning);
   font-size: 13px;
+}
+
+.poll-table tbody {
+  /* Shift+click selects rows, not text. */
+  user-select: none;
+}
+
+.poll-table tr.selected td {
+  background: var(--surface-2);
+}
+
+.poll-table tr.selected td.addr {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.alias-input {
+  width: 100%;
+  min-width: 8ch;
+  padding: 0 4px;
+  font: inherit;
+  user-select: text;
+}
+
+.modal-secondary {
+  margin-right: auto;
 }

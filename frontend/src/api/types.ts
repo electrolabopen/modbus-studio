@@ -121,6 +121,18 @@ export type ServerMessage =
   | { type: 'connection'; data: ConnectionView }
   | { type: 'traffic'; data: unknown }
 
+/** Display settings for cells start..end; omitted fields keep each cell's value. */
+export interface FormatPatch {
+  start: number
+  end: number
+  dtype?: DataType
+  order?: ByteOrder
+  scale?: number
+  unit?: string
+  alias?: string
+  reset?: boolean
+}
+
 export interface WindowWrite {
   address: number
   value: boolean | number

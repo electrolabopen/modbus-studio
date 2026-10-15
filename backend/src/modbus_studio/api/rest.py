@@ -23,6 +23,7 @@ from ..models.connection import ConnectionConfig
 from ..models.poll import PollDefinition
 from ..models.views import (
     ConnectionView,
+    FormatPatch,
     PollData,
     PollView,
     RawWrite,
@@ -150,6 +151,19 @@ async def get_poll_data(poll_id: str, studio: StudioDep) -> PollData | None:
 @router.post("/polls/{poll_id}/reset", tags=["polls"], summary="Reset Tx/Err counters")
 async def reset_poll(poll_id: str, studio: StudioDep, hub: HubDep) -> PollView:
     view = studio.reset_poll_stats(poll_id)
+    hub.publish_snapshot()
+    return view
+
+
+@router.patch(
+    "/polls/{poll_id}/formats",
+    tags=["polls"],
+    summary="Set data type, byte order, scale, unit or alias on a range of cells",
+)
+async def patch_formats(
+    poll_id: str, patch: FormatPatch, studio: StudioDep, hub: HubDep
+) -> PollView:
+    view = await studio.apply_format(poll_id, patch)
     hub.publish_snapshot()
     return view
 

@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Added
+- Per-cell and per-range display formats from the table: select rows (click,
+  Shift+click for a range) and use **Format…**, or double-click an address. Sets data
+  type, byte order, scale and unit; a range of 32/64-bit values steps two or four
+  registers at a time, and "Reset to window format" clears it. Backed by
+  `PATCH /api/polls/{id}/formats`, which keeps omitted fields per cell, refuses to start
+  in the middle of a value or run past the window, and drops entries equal to the
+  window default.
+- Aliases are edited in place: double-click the alias cell, Enter saves, Esc cancels.
 - Write by double-clicking a cell (coils and holding registers). A confirmation dialog
   shows the function (05/06/15/16), address range, data type, byte order and scale, the
   value the device will hold and the raw coils/registers sent; it warns when the value
