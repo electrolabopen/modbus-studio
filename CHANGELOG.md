@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-15
+
+First release. A Modbus master in the browser for Modbus TCP, RTU over TCP and RTU on a
+serial port: polling windows with every data type and byte order, engineering values,
+writes with confirmation and a write log, a traffic monitor, a real-time chart, CSV
+register maps, JSON workspaces, export to InfluxDB and publishing over MQTT. Install it
+with `pip install modbus-studio` or run `ghcr.io/electrolabopen/modbus-studio:0.1.0`
+(amd64 and arm64).
+
 ### Added
 - Python package for PyPI: the sdist and the wheel include the compiled UI and the
   license; `modbus-studio --version` and `--help`. CI installs the wheel on Linux,
@@ -175,4 +184,5 @@
 - Optional bearer token for the API; the server binds to 127.0.0.1 by default.
 - `modbus-studio-sim`: simulator with time-varying registers, served over TCP and RTU over TCP.
 
-[Unreleased]: https://github.com/electrolabopen/modbus-studio/commits/main
+[Unreleased]: https://github.com/electrolabopen/modbus-studio/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/electrolabopen/modbus-studio/releases/tag/v0.1.0

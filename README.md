@@ -14,9 +14,9 @@ network and open it from any browser.
 
 ![modbus-studio in use: a polling window, the real-time chart, the traffic monitor and the exporters](docs/screenshots/demo.gif)
 
-> **Status: pre-alpha.** Everything under [Working now](#working-now) is done and tested;
-> the 0.1 release is [in development](#in-development). See the
-> [roadmap](docs/ROADMAP.md).
+> **Status: pre-alpha, version 0.1.0.** Everything under [Working now](#working-now) is
+> done and tested; what is left is [in development](#in-development). See the
+> [roadmap](docs/ROADMAP.md) and the [changelog](CHANGELOG.md).
 
 ## Features
 
@@ -46,7 +46,6 @@ network and open it from any browser.
 | Feature | Where |
 |---|---|
 | RTU with a physical USB-RS485 adapter: tested only over virtual ports so far | phase 6, part 3 |
-| **Release 0.1**: multi-arch image (amd64/arm64) on GHCR, `pip install modbus-studio` from PyPI | phase 8, parts 2 and 3 |
 
 See the [roadmap](docs/ROADMAP.md) for the phases and what each one has to pass.
 

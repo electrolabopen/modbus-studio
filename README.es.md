@@ -14,9 +14,9 @@ gateway o una Raspberry Pi en la red de planta y abrirlo desde cualquier navegad
 
 ![modbus-studio en uso: una ventana de sondeo, la gráfica en tiempo real, el monitor de tráfico y los exportadores](docs/screenshots/demo.gif)
 
-> **Estado: pre-alfa.** Todo lo que aparece en [Funciona hoy](#funciona-hoy) está
-> terminado y probado; la versión 0.1 está [en desarrollo](#en-desarrollo). Ver la
-> [hoja de ruta](docs/ROADMAP.md) (en inglés).
+> **Estado: pre-alfa, versión 0.1.0.** Todo lo que aparece en [Funciona hoy](#funciona-hoy)
+> está terminado y probado; lo que falta está [en desarrollo](#en-desarrollo). Ver la
+> [hoja de ruta](docs/ROADMAP.md) y el [registro de cambios](CHANGELOG.md) (en inglés).
 
 La interfaz y la documentación detallada están en inglés; este archivo resume lo esencial
 en español.
@@ -49,7 +49,6 @@ en español.
 | Funcionalidad | Dónde |
 |---|---|
 | RTU con un adaptador USB-RS485 físico: por ahora solo probado con puertos virtuales | fase 6, parte 3 |
-| **Versión 0.1**: imagen multiarquitectura (amd64/arm64) en GHCR, `pip install modbus-studio` desde PyPI | fase 8, partes 2 y 3 |
 
 La [hoja de ruta](docs/ROADMAP.md) detalla las fases y lo que cada una debe cumplir.
 

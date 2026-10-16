@@ -102,6 +102,7 @@ jobs:
           awk -v head="## [$VERSION]" '
             index($0, head) == 1 { on = 1; next }
             on && index($0, "## [") == 1 { exit }
+            on && /^\[[^]]+\]: / { exit }
             on { print }
           ' CHANGELOG.md > notes.md
           test -s notes.md
