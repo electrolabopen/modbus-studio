@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Added
+- Exporter settings in the UI: an **Exporters** dialog with an InfluxDB and an MQTT tab,
+  the live status (state, last error, points or messages sent, errors, dropped,
+  pending) and **Test connection**, which tries the settings in the form without saving
+  them. Tokens and passwords are typed in password fields that start empty and are
+  never filled from the server; they can be kept, replaced or removed. Dots on the
+  toolbar button show each enabled exporter's state.
+- API: `GET /api/exporters` (both at once), `POST /api/exporters/influxdb/test` (an empty
+  write: checks URL, token, org and bucket, stores nothing) and
+  `POST /api/exporters/mqtt/test` (connects once with its own client ID).
 - MQTT exporter: every polled value is published as UTF-8 JSON (value in engineering
   units, unit, ISO 8601 timestamp, alias, address, device, connection, window) on a
   topic built from a template (default `modbus-studio/{connection}/{device}/{alias}`),

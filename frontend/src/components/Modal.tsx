@@ -8,9 +8,13 @@ interface ModalProps {
   onSubmit: () => void
   onClose: () => void
   /** Optional extra button on the left of the actions, e.g. "Reset". */
-  secondary?: { label: string; onClick: () => void }
+  secondary?: { label: string; onClick: () => void; disabled?: boolean }
   /** Focus Cancel when the dialog opens, so a stray Enter does not confirm. */
   focusCancel?: boolean
+  /** Label of the button that closes the dialog (default "Cancel"). */
+  cancelLabel?: string
+  /** Extra class on the dialog, e.g. "modal-wide". */
+  className?: string
   children: ReactNode
 }
 
@@ -23,6 +27,8 @@ export function Modal({
   onClose,
   secondary,
   focusCancel,
+  cancelLabel = 'Cancel',
+  className,
   children,
 }: ModalProps) {
   useEffect(() => {
@@ -38,7 +44,7 @@ export function Modal({
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form className="modal" role="dialog" aria-label={title} onSubmit={submit}>
+      <form className={className ? `modal ${className}` : 'modal'} role="dialog" aria-label={title} onSubmit={submit}>
         <h2>{title}</h2>
         <div className="modal-body">{children}</div>
         {error && (
@@ -51,14 +57,14 @@ export function Modal({
             <button
               type="button"
               className="btn modal-secondary"
-              disabled={busy}
+              disabled={busy || secondary.disabled}
               onClick={secondary.onClick}
             >
               {secondary.label}
             </button>
           )}
           <button type="button" className="btn" autoFocus={focusCancel} onClick={onClose}>
-            Cancel
+            {cancelLabel}
           </button>
           <button type="submit" className="btn btn-primary" disabled={busy}>
             {submitLabel}

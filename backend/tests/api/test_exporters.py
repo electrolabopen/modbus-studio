@@ -146,3 +146,21 @@ def test_mqtt_settings_survive_a_restart(tmp_path):
     with server(state_file=state) as client:
         config = client.get("/api/exporters/mqtt").json()["config"]
         assert config["enabled"] is True and config["password_set"] is True
+
+
+def test_all_exporters_at_once(client):
+    client.put("/api/exporters/influxdb", json=INFLUX)
+    body = client.get("/api/exporters").json()
+    assert body["influxdb"]["config"]["token_set"] is True
+    assert body["mqtt"]["status"]["state"] == "disabled"
+    assert "s3cret" not in client.get("/api/exporters").text
+
+
+def test_testing_settings_does_not_apply_them(client):
+    res = client.post("/api/exporters/mqtt/test", json={**MQTT, "enabled": False})
+    assert res.status_code == 200, res.text
+    assert res.json()["ok"] is False and "cannot connect to 127.0.0.1:1" in res.json()["message"]
+    assert client.get("/api/exporters/mqtt").json()["config"]["enabled"] is False
+    res = client.post("/api/exporters/influxdb/test", json={**INFLUX, "token": None})
+    assert res.json()["ok"] is False and res.json()["message"] == "missing: token"
+    assert client.post("/api/exporters/mqtt/test", json={"topic": "a/#"}).status_code == 422

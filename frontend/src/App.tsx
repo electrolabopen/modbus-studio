@@ -3,6 +3,7 @@ import { api, getHealth, getToken, setToken, type Health } from './api/client'
 import { connectSocket } from './api/socket'
 import { ChartPanel } from './components/ChartPanel'
 import { ConnectionDialog } from './components/ConnectionDialog'
+import { ExportersDialog, StatusDot } from './components/ExportersDialog'
 import { ImportWorkspaceDialog } from './components/ImportWorkspaceDialog'
 import { Field, Modal } from './components/Modal'
 import { PollDialog } from './components/PollDialog'
@@ -10,6 +11,7 @@ import { PollWindow } from './components/PollWindow'
 import { Sidebar } from './components/Sidebar'
 import { TrafficPanel } from './components/TrafficPanel'
 import { WriteLogPanel } from './components/WriteLogPanel'
+import { exportersSummary, useExporters } from './exporters'
 import { useStudio, type LinkState } from './store'
 import { downloadText, fileTimestamp } from './util'
 import './App.css'
@@ -94,7 +96,8 @@ interface ToolbarProps {
 
 function Toolbar({ enabled, panel, onTogglePanel }: ToolbarProps) {
   const hasConnections = useStudio((s) => Object.keys(s.connections).length > 0)
-  const [dialog, setDialog] = useState<'connection' | 'poll' | null>(null)
+  const [dialog, setDialog] = useState<'connection' | 'poll' | 'exporters' | null>(null)
+  const exporters = useExporters(enabled && dialog !== 'exporters')
   const [importFile, setImportFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -177,6 +180,18 @@ function Toolbar({ enabled, panel, onTogglePanel }: ToolbarProps) {
       >
         Write log
       </button>
+      <button
+        className="btn btn-exporters"
+        disabled={!enabled}
+        title={exportersSummary(exporters)}
+        onClick={() => setDialog('exporters')}
+      >
+        {exporters &&
+          (['influxdb', 'mqtt'] as const)
+            .filter((kind) => exporters[kind].status.state !== 'disabled')
+            .map((kind) => <StatusDot key={kind} status={exporters[kind].status} />)}
+        Exporters
+      </button>
       {error && (
         <span className="toolbar-error" role="alert">
           {error}
@@ -187,6 +202,7 @@ function Toolbar({ enabled, panel, onTogglePanel }: ToolbarProps) {
       )}
       {dialog === 'connection' && <ConnectionDialog onClose={() => setDialog(null)} />}
       {dialog === 'poll' && <PollDialog onClose={() => setDialog(null)} />}
+      {dialog === 'exporters' && <ExportersDialog onClose={() => setDialog(null)} />}
     </div>
   )
 }

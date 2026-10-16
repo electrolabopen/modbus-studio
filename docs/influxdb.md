@@ -4,9 +4,6 @@ modbus-studio can write every polled value to an InfluxDB 2.x bucket, to keep a 
 and graph it in Grafana. The exporter runs inside the server, next to the polling
 windows.
 
-> For now it is configured through the API (`/api/exporters/influxdb`). Settings in the
-> UI come in phase 7, part 3.
-
 ## Try it with docker compose
 
 The `influxdb` profile adds InfluxDB 2.7 and Grafana 11, points the exporter at that
@@ -125,6 +122,18 @@ from(bucket: "modbus")
 
 ## Configuring it
 
+Click **Exporters** in the toolbar and pick the *InfluxDB* tab. The dialog shows the
+status live (state, last error, counters) and has a **Test connection** button that
+tries the settings as they are in the form, without saving them. **Save** applies them
+at once. The token is typed but never shown: the field starts empty with "saved
+(hidden)" when one is set; leave it empty to keep it, or tick *Remove the saved
+token*. The dots on the **Exporters** button show each enabled exporter's state
+(green: working, amber: starting, red: failing).
+
+![Exporters dialog](screenshots/exporters.jpg)
+
+The same settings through the API:
+
 ```bash
 curl -X PUT http://127.0.0.1:8000/api/exporters/influxdb \
   -H 'Content-Type: application/json' \
@@ -150,6 +159,10 @@ The token is never sent back: `GET /api/exporters/influxdb` says `token_set: tru
 The settings are saved with the workspace, the token included, in the server's state
 file (`/data/workspace.json` in Docker). **Export workspace** leaves the token out, and
 importing such a file keeps the token already set.
+
+**Test connection** (`POST /api/exporters/influxdb/test`, same body as the `PUT`) makes
+an empty write to the bucket: InfluxDB checks the URL, the token, the org and the bucket
+and answers without storing anything. A missing token means the saved one.
 
 ## Status, errors and buffering
 

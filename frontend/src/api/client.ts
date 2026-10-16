@@ -1,7 +1,13 @@
 import type {
   ConnectionConfig,
   ConnectionView,
+  ExportersView,
+  ExporterTest,
   FormatPatch,
+  InfluxDBConfig,
+  InfluxDBView,
+  MQTTConfig,
+  MQTTView,
   PollDefinition,
   PollView,
   SerialPort,
@@ -66,7 +72,9 @@ function errorMessage(body: unknown, fallback: string): string {
     return detail
       .map((d: { loc?: unknown[]; msg?: string }) => {
         const field = (d.loc ?? []).filter((p) => p !== 'body').join('.')
-        return field ? `${field}: ${d.msg}` : (d.msg ?? '')
+        // Pydantic prefixes the messages of custom validators with "Value error, ".
+        const msg = (d.msg ?? '').replace(/^Value error, /, '')
+        return field ? `${field}: ${msg}` : msg
       })
       .join('; ')
   }
@@ -140,4 +148,12 @@ export const api = {
   listWrites: (limit = 200) => request<WriteLogEntry[]>(`/writes?limit=${limit}`),
   write: (id: string, req: WindowWrite) =>
     request<WritePlan>(`/polls/${encodeURIComponent(id)}/write`, json('POST', req)),
+  getExporters: () => request<ExportersView>('/exporters'),
+  saveInfluxDB: (config: InfluxDBConfig) =>
+    request<InfluxDBView>('/exporters/influxdb', json('PUT', config)),
+  testInfluxDB: (config: InfluxDBConfig) =>
+    request<ExporterTest>('/exporters/influxdb/test', json('POST', config)),
+  saveMQTT: (config: MQTTConfig) => request<MQTTView>('/exporters/mqtt', json('PUT', config)),
+  testMQTT: (config: MQTTConfig) =>
+    request<ExporterTest>('/exporters/mqtt/test', json('POST', config)),
 }

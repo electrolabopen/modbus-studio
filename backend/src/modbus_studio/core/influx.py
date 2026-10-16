@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from ..models.exporters import ExporterStatus, InfluxDBConfig
+from ..models.exporters import ExporterStatus, ExporterTest, InfluxDBConfig
 
 log = logging.getLogger(__name__)
 
@@ -107,6 +107,48 @@ def describe_response(response: httpx.Response) -> str:
     return f"{hint} ({message})" if message else hint
 
 
+def _client(cfg: InfluxDBConfig, transport: httpx.AsyncBaseTransport | None) -> httpx.AsyncClient:
+    return httpx.AsyncClient(
+        base_url=cfg.url,
+        headers={
+            "Authorization": f"Token {cfg.token}",
+            "Content-Type": "text/plain; charset=utf-8",
+        },
+        timeout=cfg.timeout_s,
+        verify=cfg.verify_tls,
+        transport=transport,
+    )
+
+
+async def test_connection(
+    cfg: InfluxDBConfig, transport: httpx.AsyncBaseTransport | None = None
+) -> ExporterTest:
+    """Try the settings with an empty write: InfluxDB checks the token, the org and
+    the bucket and answers 204 without storing anything."""
+    started = time.monotonic()
+
+    def result(ok: bool, message: str) -> ExporterTest:
+        elapsed = round((time.monotonic() - started) * 1000, 1)
+        return ExporterTest(ok=ok, message=message, elapsed_ms=elapsed)
+
+    if missing := cfg.missing():
+        return result(False, f"missing: {', '.join(missing)}")
+    try:
+        async with _client(cfg, transport) as client:
+            response = await client.post(
+                "/api/v2/write",
+                params={"org": cfg.org, "bucket": cfg.bucket, "precision": "ns"},
+                content=b"",
+            )
+    except httpx.HTTPError as exc:
+        return result(False, describe_error(exc, cfg.url))
+    if response.status_code != 204:
+        return result(False, describe_response(response))
+    version = response.headers.get("X-Influxdb-Version")
+    server = f"InfluxDB {version}" if version else "InfluxDB"
+    return result(True, f"{server} accepts writes to bucket {cfg.bucket!r} of org {cfg.org!r}")
+
+
 class InfluxExporter:
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
         self.config = InfluxDBConfig()
@@ -188,17 +230,7 @@ class InfluxExporter:
     # -- data out ----------------------------------------------------------
 
     def _client(self) -> httpx.AsyncClient:
-        cfg = self.config
-        return httpx.AsyncClient(
-            base_url=cfg.url,
-            headers={
-                "Authorization": f"Token {cfg.token}",
-                "Content-Type": "text/plain; charset=utf-8",
-            },
-            timeout=cfg.timeout_s,
-            verify=cfg.verify_tls,
-            transport=self._transport,
-        )
+        return _client(self.config, self._transport)
 
     async def _run(self) -> None:
         retry = RETRY_MIN_S

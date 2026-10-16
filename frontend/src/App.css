@@ -890,3 +890,157 @@ select:focus,
 .port-list .warn {
   color: var(--warning);
 }
+
+/* -- exporters dialog ---------------------------------------------------- */
+
+.modal-wide {
+  display: flex;
+  flex-direction: column;
+  width: min(620px, 100%);
+  max-height: calc(100vh - 32px);
+}
+
+/* Only the body scrolls: Save and Test connection stay in view. */
+.modal-wide .modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tab.active {
+  border-color: var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.tab .dot,
+.exporter-state .dot,
+.btn-exporters .dot {
+  margin-top: 0;
+}
+
+.btn-exporters {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.exporter-status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.exporter-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0;
+}
+
+.counter {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.counter dt {
+  color: var(--text-muted);
+}
+
+.counter dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.counter.warn dd {
+  color: var(--warning);
+}
+
+.exporter-status p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.modal-body > .check {
+  margin-top: 0;
+}
+
+.indent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 22px;
+}
+
+.indent > .check {
+  margin-top: 0;
+}
+
+.advanced {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.advanced summary {
+  cursor: pointer;
+}
+
+.advanced[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.test-ok,
+.test-failed {
+  margin: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.test-ok {
+  color: var(--accent);
+}
+
+.test-failed {
+  color: var(--danger);
+}
+
+@media (max-width: 720px) {
+  .modal-wide .field-row {
+    flex-direction: column;
+  }
+}

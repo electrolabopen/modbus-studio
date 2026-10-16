@@ -4,9 +4,6 @@ modbus-studio can publish every polled value to an MQTT broker, one JSON message
 value, for SCADA, Node-RED, Home Assistant or any other subscriber. The exporter runs
 inside the server, next to the polling windows.
 
-> For now it is configured through the API (`/api/exporters/mqtt`). Settings in the UI
-> come in phase 7, part 3.
-
 ## Try it with docker compose
 
 The `mqtt` profile adds Mosquitto 2 and points the exporter at it:
@@ -87,6 +84,18 @@ polls and values that cannot be decoded publish nothing.
 
 ## Configuring it
 
+Click **Exporters** in the toolbar and pick the *MQTT* tab. The dialog shows the
+status live (state, last error, counters) and has a **Test connection** button that
+tries the settings as they are in the form, without saving them. **Save** applies them
+at once. The password is typed but never shown: the field starts empty with "saved
+(hidden)" when one is set; leave it empty to keep it, or tick *Remove the saved
+password*. The dots on the **Exporters** button show each enabled exporter's state
+(green: working, amber: starting, red: failing).
+
+![Exporters dialog](screenshots/exporters.jpg)
+
+The same settings through the API:
+
 ```bash
 curl -X PUT http://127.0.0.1:8000/api/exporters/mqtt \
   -H 'Content-Type: application/json' \
@@ -123,6 +132,11 @@ password out, and importing such a file keeps the password already set.
 
 Any change is applied at once: the client disconnects and connects again with the new
 settings.
+
+**Test connection** (`POST /api/exporters/mqtt/test`, same body as the `PUT`) connects to
+the broker once, waits for its answer and disconnects. It uses its own client ID
+(the exporter's plus `-test`), so the running exporter stays connected. A missing
+password means the saved one.
 
 ## Status, errors and buffering
 

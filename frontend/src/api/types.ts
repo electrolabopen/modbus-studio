@@ -260,3 +260,96 @@ export const DEFAULT_FORMAT: RegisterFormat = {
   unit: '',
   alias: '',
 }
+
+// -- exporters (InfluxDB, MQTT) -------------------------------------------------
+
+export type ExporterState = 'disabled' | 'incomplete' | 'idle' | 'ok' | 'error'
+
+export interface ExporterStatus {
+  state: ExporterState
+  last_error: string | null
+  last_error_at: number | null
+  last_success_at: number | null
+  points_sent: number
+  /** InfluxDB: write requests. MQTT: messages, one per value. */
+  writes: number
+  errors: number
+  dropped: number
+  pending: number
+  /** MQTT only. */
+  connected: boolean | null
+}
+
+export interface InfluxDBSettings {
+  enabled: boolean
+  url: string
+  org: string
+  bucket: string
+  aliased_only: boolean
+  flush_interval_ms: number
+  batch_size: number
+  buffer_size: number
+  timeout_s: number
+  verify_tls: boolean
+}
+
+/** Sent to the server. ``token``: omitted or null keeps the saved one, "" removes it. */
+export interface InfluxDBConfig extends InfluxDBSettings {
+  token?: string | null
+}
+
+/** Returned by the server: never the token itself. */
+export interface InfluxDBConfigView extends InfluxDBSettings {
+  token_set: boolean
+}
+
+export interface MQTTSettings {
+  enabled: boolean
+  host: string
+  port: number
+  client_id: string
+  username: string
+  topic: string
+  qos: 0 | 1 | 2
+  retain: boolean
+  aliased_only: boolean
+  keepalive_s: number
+  buffer_size: number
+  tls: boolean
+  ca_file: string
+  cert_file: string
+  key_file: string
+  verify_tls: boolean
+}
+
+/** Sent to the server. ``password``: omitted or null keeps the saved one, "" removes it. */
+export interface MQTTConfig extends MQTTSettings {
+  password?: string | null
+}
+
+/** Returned by the server: never the password itself. */
+export interface MQTTConfigView extends MQTTSettings {
+  password_set: boolean
+}
+
+export interface InfluxDBView {
+  config: InfluxDBConfigView
+  status: ExporterStatus
+}
+
+export interface MQTTView {
+  config: MQTTConfigView
+  status: ExporterStatus
+}
+
+export interface ExportersView {
+  influxdb: InfluxDBView
+  mqtt: MQTTView
+}
+
+/** The result of "Test connection": the settings are tried, not saved. */
+export interface ExporterTest {
+  ok: boolean
+  message: string
+  elapsed_ms: number
+}

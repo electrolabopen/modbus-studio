@@ -21,7 +21,14 @@ from ..core.studio import (
     Studio,
 )
 from ..models.connection import ConnectionConfig
-from ..models.exporters import InfluxDBConfig, InfluxDBView, MQTTConfig, MQTTView
+from ..models.exporters import (
+    ExportersView,
+    ExporterTest,
+    InfluxDBConfig,
+    InfluxDBView,
+    MQTTConfig,
+    MQTTView,
+)
 from ..models.poll import PollDefinition
 from ..models.views import (
     ConnectionView,
@@ -257,6 +264,33 @@ async def import_register_map(
 )
 async def export_workspace(studio: StudioDep) -> Workspace:
     return studio.export_workspace(secrets=False)
+
+
+@router.get("/exporters", tags=["exporters"], summary="Settings and status of every exporter")
+async def get_exporters(studio: StudioDep) -> ExportersView:
+    return studio.exporters_view()
+
+
+@router.post(
+    "/exporters/influxdb/test",
+    tags=["exporters"],
+    summary="Try InfluxDB settings without saving them",
+    description="An empty write to the bucket: checks the URL, the token, the org and the "
+    "bucket, and stores nothing. A missing `token` means the saved one.",
+)
+async def test_influxdb(config: InfluxDBConfig, studio: StudioDep) -> ExporterTest:
+    return await studio.test_influxdb(config)
+
+
+@router.post(
+    "/exporters/mqtt/test",
+    tags=["exporters"],
+    summary="Try MQTT settings without saving them",
+    description="Connects to the broker once, with its own client ID, and disconnects. "
+    "A missing `password` means the saved one.",
+)
+async def test_mqtt(config: MQTTConfig, studio: StudioDep) -> ExporterTest:
+    return await studio.test_mqtt(config)
 
 
 @router.get("/exporters/influxdb", tags=["exporters"], summary="InfluxDB exporter settings")

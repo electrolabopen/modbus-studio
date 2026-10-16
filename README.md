@@ -11,8 +11,8 @@ Modbus specification. Run it on your laptop, or on a gateway or Raspberry Pi on 
 network and open it from any browser.
 
 > **Status: pre-alpha.** Everything under [Working now](#working-now) is done and tested;
-> the exporter settings in the UI and the 0.1 release are
-> [in development](#in-development). See the [roadmap](docs/ROADMAP.md).
+> the 0.1 release is [in development](#in-development). See the
+> [roadmap](docs/ROADMAP.md).
 
 ## Features
 
@@ -31,6 +31,7 @@ network and open it from any browser.
 | Chart | Real-time chart of selected registers (uPlot), pause, zoom, CSV export |
 | InfluxDB | Export to InfluxDB 2.x, compose profile with Grafana and a dashboard for the simulator ([guide](docs/influxdb.md)) |
 | MQTT | Publish every value as JSON (value, unit, timestamp) on a configurable topic, QoS 0/1/2, retain, TLS; compose profile with Mosquitto ([guide](docs/mqtt.md)) |
+| Exporter settings | InfluxDB and MQTT configured from the UI, with live status, counters and a connection test; tokens and passwords are typed, never shown |
 | API | REST API + WebSocket, the same API the UI uses; OpenAPI at `/docs` |
 | Security | Binds to 127.0.0.1 by default, optional API token |
 | Docker | `docker compose up` with the bundled simulator |
@@ -39,7 +40,6 @@ network and open it from any browser.
 
 | Feature | Where |
 |---|---|
-| InfluxDB and MQTT settings and status in the UI (for now they are set up through the API) | phase 7, part 3 |
 | RTU with a physical USB-RS485 adapter: tested only over virtual ports so far | phase 6, part 3 |
 | **Release 0.1**: `pip install modbus-studio`, multi-arch image (amd64/arm64) on GHCR, docs and a GIF | phase 8 |
 
@@ -55,6 +55,10 @@ two of its registers:
 The traffic monitor, with every request and response in hex:
 
 ![Traffic monitor](docs/screenshots/window-traffic.jpg)
+
+The exporters dialog: InfluxDB and MQTT settings, live status and a connection test:
+
+![Exporters dialog](docs/screenshots/exporters.jpg)
 
 The same values in Grafana, exported to InfluxDB (`docker compose --profile influxdb up`):
 

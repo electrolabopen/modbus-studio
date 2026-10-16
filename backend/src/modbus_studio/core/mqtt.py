@@ -29,7 +29,7 @@ from typing import Any
 import paho.mqtt.client as mqtt
 from paho.mqtt.enums import CallbackAPIVersion, MQTTErrorCode, MQTTProtocolVersion
 
-from ..models.exporters import ExporterStatus, MQTTConfig
+from ..models.exporters import ExporterStatus, ExporterTest, MQTTConfig
 from .influx import Sample
 
 log = logging.getLogger(__name__)
@@ -115,6 +115,71 @@ def ssl_context(cfg: MQTTConfig) -> ssl.SSLContext:
     return context
 
 
+def _prepare(client: mqtt.Client, cfg: MQTTConfig) -> None:
+    """Credentials and TLS. Raises OSError or ValueError on unusable TLS files."""
+    if cfg.username:
+        client.username_pw_set(cfg.username, cfg.password or None)
+    if cfg.tls:
+        client.tls_set_context(ssl_context(cfg))
+        if not cfg.verify_tls:
+            client.tls_insecure_set(True)
+
+
+def test_connection(cfg: MQTTConfig, client_id: str, timeout: float = 5.0) -> ExporterTest:
+    """Connect once with the settings, wait for the broker's answer and disconnect.
+    Blocking: run it in a thread."""
+    started = time.monotonic()
+    where = f"{cfg.host}:{cfg.port}"
+
+    def result(ok: bool, message: str) -> ExporterTest:
+        elapsed = round((time.monotonic() - started) * 1000, 1)
+        return ExporterTest(ok=ok, message=message, elapsed_ms=elapsed)
+
+    if missing := cfg.missing():
+        return result(False, f"missing: {', '.join(missing)}")
+    client = mqtt.Client(
+        callback_api_version=CallbackAPIVersion.VERSION2,
+        client_id=client_id,
+        protocol=MQTTProtocolVersion.MQTTv311,
+        clean_session=True,
+    )
+    client.connect_timeout = timeout
+    try:
+        _prepare(client, cfg)
+    except (OSError, ValueError) as exc:
+        return result(False, f"TLS settings: {exc}")
+    answer: list[Any] = []
+    done = threading.Event()
+
+    def on_connect(_c: Any, _u: Any, _f: Any, reason: Any, _p: Any) -> None:
+        answer.append(reason)
+        done.set()
+
+    client.on_connect = on_connect
+    client.on_disconnect = lambda *_: done.set()
+    try:
+        client.connect(cfg.host, cfg.port, cfg.keepalive_s)
+    except OSError as exc:
+        return result(False, describe_error(exc, cfg.host, cfg.port))
+    client.loop_start()
+    try:
+        closed = done.wait(timeout)
+    finally:
+        client.disconnect()
+        client.loop_stop()
+    if not answer:
+        if closed:
+            return result(
+                False,
+                f"{where} closed the connection before accepting it: "
+                "check the port and the TLS setting",
+            )
+        return result(False, f"no answer from {where} within {timeout:g} s")
+    if answer[0].is_failure:
+        return result(False, f"connection refused by the broker: {answer[0]}")
+    return result(True, f"connected to {where}" + (" with TLS" if cfg.tls else ""))
+
+
 class _Client(mqtt.Client):
     """paho's client, reporting why a connection attempt failed (paho only says that
     it did)."""
@@ -190,16 +255,11 @@ class MqttExporter:
             protocol=MQTTProtocolVersion.MQTTv311,
             clean_session=True,
         )
-        if cfg.username:
-            client.username_pw_set(cfg.username, cfg.password or None)
-        if cfg.tls:
-            try:
-                client.tls_set_context(ssl_context(cfg))
-            except (OSError, ValueError) as exc:
-                self._failed(f"TLS settings: {exc}")
-                return
-            if not cfg.verify_tls:
-                client.tls_insecure_set(True)
+        try:
+            _prepare(client, cfg)
+        except (OSError, ValueError) as exc:
+            self._failed(f"TLS settings: {exc}")
+            return
         client.reconnect_delay_set(RECONNECT_MIN_S, RECONNECT_MAX_S)
         client.on_connect = lambda _c, _u, _f, rc, _p: self._from_thread(
             self._connected, generation, rc

@@ -15,6 +15,8 @@ import httpx
 from ..models.connection import ConnectionConfig, RtuConnection, TcpConnection
 from ..models.exporters import (
     ExportersConfig,
+    ExportersView,
+    ExporterTest,
     InfluxDBConfig,
     InfluxDBConfigView,
     InfluxDBView,
@@ -37,6 +39,7 @@ from ..models.views import (
     WritePlan,
 )
 from ..models.workspace import Workspace
+from . import influx, mqtt
 from .codec import (
     CodecError,
     decode,
@@ -100,6 +103,7 @@ class Studio:
         self.connections = ConnectionManager(self.traffic, client_factory)
         self.polls = PollManager(self.connections)
         self.influx = InfluxExporter(influx_transport)
+        self._influx_transport = influx_transport
         self.mqtt = MqttExporter()
         self.polls.subscribe(self._export)
         self._change_listeners: list[Callable[[], None]] = []
@@ -608,14 +612,29 @@ class Studio:
             status=self.influx.status.model_copy(),
         )
 
+    def exporters_view(self) -> ExportersView:
+        return ExportersView(influxdb=self.influxdb_view(), mqtt=self.mqtt_view())
+
+    def _with_token(self, config: InfluxDBConfig) -> InfluxDBConfig:
+        """A missing token means the current one; an empty string means none."""
+        if config.token is None:
+            return config.model_copy(update={"token": self.influx.config.token})
+        if config.token == "":
+            return config.model_copy(update={"token": None})
+        return config
+
+    def _with_password(self, config: MQTTConfig) -> MQTTConfig:
+        """A missing password means the current one; an empty string means none."""
+        if config.password is None:
+            return config.model_copy(update={"password": self.mqtt.config.password})
+        if config.password == "":
+            return config.model_copy(update={"password": None})
+        return config
+
     def set_influxdb(self, config: InfluxDBConfig) -> InfluxDBView:
         """Apply InfluxDB settings. A missing token keeps the current one; an empty
         string removes it."""
-        if config.token is None:
-            config = config.model_copy(update={"token": self.influx.config.token})
-        elif config.token == "":
-            config = config.model_copy(update={"token": None})
-        self.influx.configure(config)
+        self.influx.configure(self._with_token(config))
         self._changed()
         return self.influxdb_view()
 
@@ -628,13 +647,20 @@ class Studio:
     def set_mqtt(self, config: MQTTConfig) -> MQTTView:
         """Apply MQTT settings. A missing password keeps the current one; an empty
         string removes it."""
-        if config.password is None:
-            config = config.model_copy(update={"password": self.mqtt.config.password})
-        elif config.password == "":
-            config = config.model_copy(update={"password": None})
-        self.mqtt.configure(config)
+        self.mqtt.configure(self._with_password(config))
         self._changed()
         return self.mqtt_view()
+
+    async def test_influxdb(self, config: InfluxDBConfig) -> ExporterTest:
+        """Try InfluxDB settings without applying them (token as in ``set_influxdb``)."""
+        return await influx.test_connection(self._with_token(config), self._influx_transport)
+
+    async def test_mqtt(self, config: MQTTConfig) -> ExporterTest:
+        """Try MQTT settings without applying them (password as in ``set_mqtt``)."""
+        config = self._with_password(config)
+        # Its own client ID: reusing the exporter's would make the broker drop it.
+        client_id = f"{config.client_id or self.mqtt.default_client_id}-test"
+        return await asyncio.to_thread(mqtt.test_connection, config, client_id)
 
     def _export(self, result: PollResult) -> None:
         """Hand a poll result to the exporters. Runs inside the poll loop: no I/O."""

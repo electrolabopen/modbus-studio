@@ -196,6 +196,19 @@ class MQTTView(BaseModel):
     status: ExporterStatus
 
 
+class ExportersView(BaseModel):
+    influxdb: InfluxDBView
+    mqtt: MQTTView
+
+
+class ExporterTest(BaseModel):
+    """The result of trying a set of exporter settings, without saving them."""
+
+    ok: bool
+    message: str
+    elapsed_ms: float
+
+
 class ExportersConfig(BaseModel):
     influxdb: InfluxDBConfig = Field(default_factory=InfluxDBConfig)
     mqtt: MQTTConfig = Field(default_factory=MQTTConfig)
