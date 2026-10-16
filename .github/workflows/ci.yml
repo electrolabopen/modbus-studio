@@ -96,12 +96,16 @@ jobs:
         run: |
           docker compose --profile influxdb up -d --wait --wait-timeout 180
           python3 docker/smoke_test.py influxdb
+      - name: "Smoke test: publish over MQTT, read with mosquitto_sub (compose profile mqtt)"
+        run: |
+          docker compose --profile influxdb --profile mqtt up -d --wait --wait-timeout 180
+          python3 docker/smoke_test.py mqtt
       - name: Stop stack (the simulator must exit on SIGTERM, not be killed)
         run: |
           docker compose stop --timeout 5
           docker compose ps -a --format '{{.Service}} {{.ExitCode}}'
           test "$(docker compose ps -a --format '{{.ExitCode}}' simulator)" = 0
       - if: failure()
-        run: docker compose --profile influxdb logs
+        run: docker compose --profile influxdb --profile mqtt logs
       - if: always()
-        run: docker compose --profile influxdb down --volumes
+        run: docker compose --profile influxdb --profile mqtt down --volumes

@@ -21,7 +21,7 @@ from ..core.studio import (
     Studio,
 )
 from ..models.connection import ConnectionConfig
-from ..models.exporters import InfluxDBConfig, InfluxDBView
+from ..models.exporters import InfluxDBConfig, InfluxDBView, MQTTConfig, MQTTView
 from ..models.poll import PollDefinition
 from ..models.views import (
     ConnectionView,
@@ -275,6 +275,25 @@ async def get_influxdb(studio: StudioDep) -> InfluxDBView:
 )
 async def put_influxdb(config: InfluxDBConfig, studio: StudioDep) -> InfluxDBView:
     return studio.set_influxdb(config)
+
+
+@router.get("/exporters/mqtt", tags=["exporters"], summary="MQTT exporter settings")
+async def get_mqtt(studio: StudioDep) -> MQTTView:
+    """The settings (without the password) and the status: connected, state, last
+    error, messages sent, errors, dropped and pending messages."""
+    return studio.mqtt_view()
+
+
+@router.put(
+    "/exporters/mqtt",
+    tags=["exporters"],
+    summary="Change the MQTT exporter settings",
+    description="Omit `password` (or send null) to keep the current password; send an "
+    "empty string to remove it. Applied at once (the client reconnects) and saved with "
+    "the workspace.",
+)
+async def put_mqtt(config: MQTTConfig, studio: StudioDep) -> MQTTView:
+    return studio.set_mqtt(config)
 
 
 @router.post("/workspace", tags=["workspace"], summary="Import a workspace file")

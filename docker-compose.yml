@@ -26,6 +26,15 @@
 # The credentials below are development defaults; set INFLUXDB_TOKEN,
 # INFLUXDB_PASSWORD and GRAFANA_PASSWORD (e.g. in a .env file) before exposing
 # anything, and GRAFANA_ANONYMOUS=false to require a login in Grafana.
+#
+# Optional profile "mqtt": Mosquitto, with the exporter configured to publish every
+# value (see docs/mqtt.md):
+#
+#   docker compose --profile mqtt up --build
+#   docker compose exec mosquitto mosquitto_sub -u modbus-studio -P modbus-studio -t 'modbus-studio/#' -v
+#
+# MQTT_USERNAME and MQTT_PASSWORD (default modbus-studio / modbus-studio) are the
+# broker's only account. Both profiles can run together.
 
 x-image: &image
   build:
@@ -37,6 +46,10 @@ x-influxdb-env: &influxdb-env
   INFLUXDB_ORG: modbus-studio
   INFLUXDB_BUCKET: modbus
   INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-modbus-studio-dev-token}
+
+x-mqtt-env: &mqtt-env
+  MQTT_USERNAME: ${MQTT_USERNAME:-modbus-studio}
+  MQTT_PASSWORD: ${MQTT_PASSWORD:-modbus-studio}
 
 services:
   modbus-studio:
@@ -115,13 +128,13 @@ services:
   influxdb-setup:
     <<: *image
     profiles: [influxdb]
-    command: ["python", "/etc/modbus-studio/configure_influxdb.py"]
+    command: ["python", "/etc/modbus-studio/configure_exporters.py", "influxdb"]
     environment:
       <<: *influxdb-env
       MODBUS_STUDIO_URL: http://modbus-studio:8000
       MODBUS_STUDIO_TOKEN: ${MODBUS_STUDIO_TOKEN:-}
     volumes:
-      - ./docker/configure_influxdb.py:/etc/modbus-studio/configure_influxdb.py:ro
+      - ./docker/configure_exporters.py:/etc/modbus-studio/configure_exporters.py:ro
     depends_on:
       modbus-studio:
         condition: service_healthy
@@ -163,7 +176,61 @@ services:
       start_interval: 1s
     restart: unless-stopped
 
+  # -- profile "mqtt" ------------------------------------------------------------
+
+  # Points modbus-studio's MQTT exporter at Mosquitto, once (an exporter already set
+  # up, e.g. from the UI, is left alone). It only needs modbus-studio: the exporter
+  # connects by itself as soon as Mosquitto is up.
+  mqtt-setup:
+    <<: *image
+    profiles: [mqtt]
+    command: ["python", "/etc/modbus-studio/configure_exporters.py", "mqtt"]
+    environment:
+      <<: *mqtt-env
+      MODBUS_STUDIO_URL: http://modbus-studio:8000
+      MODBUS_STUDIO_TOKEN: ${MODBUS_STUDIO_TOKEN:-}
+    volumes:
+      - ./docker/configure_exporters.py:/etc/modbus-studio/configure_exporters.py:ro
+    depends_on:
+      modbus-studio:
+        condition: service_healthy
+    restart: "no"
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.20
+    profiles: [mqtt]
+    environment:
+      <<: *mqtt-env
+    # The password file is rewritten at every start, so changing MQTT_PASSWORD and
+    # recreating the container is enough.
+    command:
+      - sh
+      - -c
+      - |
+        install -m 600 -o mosquitto -g mosquitto /dev/null /mosquitto/passwd
+        mosquitto_passwd -b /mosquitto/passwd "$$MQTT_USERNAME" "$$MQTT_PASSWORD"
+        exec mosquitto -c /mosquitto/config/mosquitto.conf
+    ports:
+      - "127.0.0.1:1883:1883"
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    depends_on:
+      # Also lets `docker compose up --wait` accept that the setup container exits.
+      mqtt-setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mosquitto_sub -h 127.0.0.1 -u "$$MQTT_USERNAME" -P "$$MQTT_PASSWORD" -t '$$SYS/broker/version' -C 1 -W 3
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      start_interval: 1s
+    restart: unless-stopped
+
 volumes:
   modbus-studio-data:
   influxdb-data:
   grafana-data:
+  mosquitto-data:

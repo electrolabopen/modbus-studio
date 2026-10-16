@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### Added
+- MQTT exporter: every polled value is published as UTF-8 JSON (value in engineering
+  units, unit, ISO 8601 timestamp, alias, address, device, connection, window) on a
+  topic built from a template (default `modbus-studio/{connection}/{device}/{alias}`),
+  with QoS 0/1/2, retain, user name and password, and TLS (CA, client certificate,
+  optional verification). Configured with `GET`/`PUT /api/exporters/mqtt` and saved with
+  the workspace; the password is never returned and **Export workspace** leaves it out.
+  Status with connection state, last error, messages sent, errors, dropped and pending.
+  The broker being down never delays polling: messages wait in a bounded buffer and are
+  published, oldest first, when it is back. See `docs/mqtt.md`.
+- docker compose profile `mqtt`: Mosquitto 2 with a password (`MQTT_USERNAME`,
+  `MQTT_PASSWORD`), port on 127.0.0.1 only, and the exporter set up. CI reads the
+  values back with `mosquitto_sub`.
 - InfluxDB 2.x exporter: every polled value is written as a point (measurement = window,
   tags connection, device, alias, address and unit, field `value` in engineering units),
   in batches through the HTTP API. Configured with `GET`/`PUT /api/exporters/influxdb`

@@ -12,6 +12,10 @@
     docker compose --profile influxdb up -d --wait
     python docker/smoke_test.py influxdb
 
+    # publish over MQTT (profile "mqtt"), read back with mosquitto_sub:
+    docker compose --profile mqtt up -d --wait
+    python docker/smoke_test.py mqtt
+
 Checks, through the app's REST API on the host:
   1. the preloaded demo window (docker/demo-workspace.json) polls the simulator
      by its service name and gets valid responses;
@@ -20,7 +24,9 @@ Checks, through the app's REST API on the host:
      explanation instead of a bare "not connected";
   4. (persist-*) connections and windows survive a restart of the app container;
   5. (influxdb) the exporter set up by the profile writes the demo window's values,
-     with their tags, into InfluxDB.
+     with their tags, into InfluxDB;
+  6. (mqtt) the exporter set up by the profile publishes the demo window's values to
+     Mosquitto, as read by mosquitto_sub inside the mosquitto container.
 
 Standard library only, so it runs on any CI runner or workstation with Python 3.
 """
@@ -29,6 +35,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import time
 import urllib.error
@@ -41,6 +48,8 @@ TOKEN = os.environ.get("MODBUS_STUDIO_TOKEN") or None
 TIMEOUT_S = float(os.environ.get("SMOKE_TIMEOUT_S", "60"))
 INFLUXDB_URL = os.environ.get("INFLUXDB_URL", "http://127.0.0.1:8086").rstrip("/")
 INFLUXDB_TOKEN = os.environ.get("INFLUXDB_TOKEN", "modbus-studio-dev-token")
+MQTT_USERNAME = os.environ.get("MQTT_USERNAME", "modbus-studio")
+MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD", "modbus-studio")
 
 
 def api(method: str, path: str, body: Any = None) -> Any:
@@ -174,14 +183,16 @@ def flux(query: str) -> list[dict[str, str]]:
     if not lines:
         return []
     header = lines[0].split(",")
-    return [dict(zip(header, line.split(","))) for line in lines[1:]]
+    return [dict(zip(header, line.split(","), strict=False)) for line in lines[1:]]
 
 
 def influxdb() -> None:
     wait_until(
         "the exporter writes to InfluxDB",
-        lambda: (s := api("GET", "/api/exporters/influxdb")["status"])["state"] == "ok"
-        and s["points_sent"] > 0,
+        lambda: (
+            (s := api("GET", "/api/exporters/influxdb")["status"])["state"] == "ok"
+            and s["points_sent"] > 0
+        ),
     )
     rows = wait_until(
         "the demo window's temperature is in InfluxDB",
@@ -198,11 +209,37 @@ def influxdb() -> None:
     assert -50.0 <= float(row["_value"]) <= 150.0, row["_value"]
 
 
+def mqtt() -> None:
+    wait_until(
+        "the exporter is connected to Mosquitto and publishing",
+        lambda: (
+            (s := api("GET", "/api/exporters/mqtt")["status"])["connected"] and s["points_sent"] > 0
+        ),
+    )
+    # One message from the broker itself, through the broker's own client.
+    sub = subprocess.run(
+        [
+            "docker", "compose", "--profile", "mqtt", "exec", "-T", "mosquitto",
+            "mosquitto_sub", "-u", MQTT_USERNAME, "-P", MQTT_PASSWORD,
+            "-t", "modbus-studio/Simulator (compose)/1/temperature", "-C", "1", "-W", "30",
+        ],
+        check=False, capture_output=True, encoding="utf-8", timeout=60,
+    )  # fmt: skip
+    assert sub.returncode == 0, f"mosquitto_sub failed: {sub.stderr or sub.stdout}"
+    body = json.loads(sub.stdout.splitlines()[0])
+    assert body["alias"] == "temperature" and body["unit"] == "°C", body
+    assert body["connection"] == "Simulator (compose)" and body["device"] == 1, body
+    # Published in engineering units (scale 0.1), not as the raw register.
+    assert -50.0 <= body["value"] <= 150.0, body
+    assert body["timestamp"].endswith("Z"), body
+
+
 STEPS: dict[str, Callable[[], None]] = {
     "connectivity": connectivity,
     "persist-write": persist_write,
     "persist-check": persist_check,
     "influxdb": influxdb,
+    "mqtt": mqtt,
 }
 
 

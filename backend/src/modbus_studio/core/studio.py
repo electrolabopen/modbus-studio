@@ -18,6 +18,9 @@ from ..models.exporters import (
     InfluxDBConfig,
     InfluxDBConfigView,
     InfluxDBView,
+    MQTTConfig,
+    MQTTConfigView,
+    MQTTView,
 )
 from ..models.format import RegisterFormatModel
 from ..models.poll import PollDefinition, ReadFunction
@@ -52,6 +55,7 @@ from .connection import (
 )
 from .frames import FrameInfo, describe
 from .influx import InfluxExporter, Sample
+from .mqtt import MqttExporter
 from .poller import PollManager, PollResult, PollTask
 from .registermap import MapError, MapRow, RegisterMapError, WindowFit, parse_register_map
 from .serialports import list_serial_ports
@@ -96,6 +100,7 @@ class Studio:
         self.connections = ConnectionManager(self.traffic, client_factory)
         self.polls = PollManager(self.connections)
         self.influx = InfluxExporter(influx_transport)
+        self.mqtt = MqttExporter()
         self.polls.subscribe(self._export)
         self._change_listeners: list[Callable[[], None]] = []
 
@@ -108,8 +113,8 @@ class Studio:
             listener()
 
     def export_workspace(self, secrets: bool = True) -> Workspace:
-        """The session as a workspace; ``secrets=False`` leaves out exporter tokens."""
-        exporters = ExportersConfig(influxdb=self.influx.config)
+        """The session as a workspace; ``secrets=False`` leaves out exporter secrets."""
+        exporters = ExportersConfig(influxdb=self.influx.config, mqtt=self.mqtt.config)
         return Workspace(
             connections=[c.config for c in self.connections.all()],
             polls=[t.definition for t in self.polls.all()],
@@ -120,6 +125,7 @@ class Studio:
         await self.polls.stop_all()
         await self.connections.close_all()
         await self.influx.close()
+        await self.mqtt.close()
 
     # -- connections -------------------------------------------------------
 
@@ -146,6 +152,7 @@ class Studio:
         """
         if exporters:
             self.set_influxdb(workspace.exporters.influxdb)
+            self.set_mqtt(workspace.exporters.mqtt)
         for config in workspace.connections:
             self.add_connection(config)
         for definition in workspace.polls:
@@ -612,9 +619,26 @@ class Studio:
         self._changed()
         return self.influxdb_view()
 
+    def mqtt_view(self) -> MQTTView:
+        return MQTTView(
+            config=MQTTConfigView.of(self.mqtt.config),
+            status=self.mqtt.status.model_copy(),
+        )
+
+    def set_mqtt(self, config: MQTTConfig) -> MQTTView:
+        """Apply MQTT settings. A missing password keeps the current one; an empty
+        string removes it."""
+        if config.password is None:
+            config = config.model_copy(update={"password": self.mqtt.config.password})
+        elif config.password == "":
+            config = config.model_copy(update={"password": None})
+        self.mqtt.configure(config)
+        self._changed()
+        return self.mqtt_view()
+
     def _export(self, result: PollResult) -> None:
         """Hand a poll result to the exporters. Runs inside the poll loop: no I/O."""
-        if not self.influx.active or result.values is None:
+        if not (self.influx.active or self.mqtt.active) or result.values is None:
             return
         try:
             task = self.polls.get(result.poll_id)
@@ -622,7 +646,7 @@ class Studio:
         except KeyError:  # removed while the request was in flight
             return
         d = task.definition
-        self.influx.offer(
+        samples = [
             Sample(
                 window=d.name or d.id,
                 connection=conn.config.name or conn.id,
@@ -635,7 +659,9 @@ class Studio:
             )
             for cell in self.poll_data(task, result).cells
             if cell.value is not None and cell.covered_by is None and cell.error is None
-        )
+        ]
+        self.influx.offer(samples)
+        self.mqtt.offer(samples)
 
     # -- serial ports --------------------------------------------------------
 

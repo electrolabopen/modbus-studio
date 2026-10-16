@@ -82,3 +82,67 @@ def test_old_workspace_files_load_without_exporters(client):
     res = client.post("/api/workspace?mode=replace", json={"version": 1, "connections": []})
     assert res.status_code == 200, res.text
     assert client.get("/api/exporters/influxdb").json()["config"]["enabled"] is False
+
+
+MQTT = {
+    "enabled": True,
+    "host": "127.0.0.1",
+    "port": 1,  # nothing listens there
+    "username": "modbus",
+    "password": "s3cret",
+}
+
+
+def test_mqtt_defaults_to_disabled(client):
+    body = client.get("/api/exporters/mqtt").json()
+    assert body["config"]["enabled"] is False and body["config"]["password_set"] is False
+    assert body["config"]["topic"] == "modbus-studio/{connection}/{device}/{alias}"
+    assert body["status"]["state"] == "disabled" and body["status"]["connected"] is False
+
+
+def test_the_mqtt_password_is_never_returned(client):
+    res = client.put("/api/exporters/mqtt", json=MQTT)
+    assert res.status_code == 200, res.text
+    assert "s3cret" not in res.text and "s3cret" not in client.get("/api/exporters/mqtt").text
+    assert res.json()["config"]["password_set"] is True
+    assert res.json()["status"]["state"] in ("idle", "error")  # no broker there
+
+
+def test_omitting_the_mqtt_password_keeps_it_and_an_empty_one_removes_it(client):
+    client.put("/api/exporters/mqtt", json=MQTT)
+    body = client.put("/api/exporters/mqtt", json={**MQTT, "password": None, "qos": 1}).json()
+    assert body["config"]["password_set"] is True and body["config"]["qos"] == 1
+    body = client.put("/api/exporters/mqtt", json={**MQTT, "password": ""}).json()
+    assert body["config"]["password_set"] is False
+
+
+def test_mqtt_settings_are_validated(client):
+    res = client.put("/api/exporters/mqtt", json={**MQTT, "topic": "plant/{name}"})
+    assert res.status_code == 422 and "unknown placeholder" in res.text
+    res = client.put("/api/exporters/mqtt", json={**MQTT, "topic": "plant/#"})
+    assert res.status_code == 422
+    assert client.put("/api/exporters/mqtt", json={**MQTT, "qos": 3}).status_code == 422
+    assert client.put("/api/exporters/mqtt", json={**MQTT, "port": 0}).status_code == 422
+
+
+def test_downloaded_workspace_has_the_mqtt_settings_but_not_the_password(client):
+    client.put("/api/exporters/mqtt", json=MQTT)
+    workspace = client.get("/api/workspace").json()
+    assert workspace["exporters"]["mqtt"]["username"] == "modbus"
+    assert workspace["exporters"]["mqtt"]["password"] is None
+    workspace["exporters"]["mqtt"]["topic"] = "imported/{alias}"
+    res = client.post("/api/workspace?mode=replace", json=workspace)
+    assert res.status_code == 200, res.text
+    config = client.get("/api/exporters/mqtt").json()["config"]
+    assert config["topic"] == "imported/{alias}" and config["password_set"] is True
+
+
+def test_mqtt_settings_survive_a_restart(tmp_path):
+    state = tmp_path / "workspace.json"
+    with server(state_file=state) as client:
+        client.put("/api/exporters/mqtt", json=MQTT)
+    saved = json.loads(state.read_text(encoding="utf-8"))["exporters"]["mqtt"]
+    assert saved["password"] == "s3cret"
+    with server(state_file=state) as client:
+        config = client.get("/api/exporters/mqtt").json()["config"]
+        assert config["enabled"] is True and config["password_set"] is True

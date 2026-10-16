@@ -27,6 +27,8 @@ dependencies = [
     "pydantic-settings>=2.3",
     # InfluxDB exporter (HTTP API).
     "httpx>=0.27",
+    # MQTT exporter.
+    "paho-mqtt>=2.1,<3",
 ]
 
 [project.urls]
