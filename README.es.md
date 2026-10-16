@@ -138,15 +138,25 @@ antes de exponer nada (ver las guías).
 
 ### Imagen Docker
 
-Las imágenes multiarquitectura (`linux/amd64`, `linux/arm64`) se publicarán en
-[`ghcr.io/electrolabopen/modbus-studio`](https://github.com/electrolabopen/modbus-studio/pkgs/container/modbus-studio) a partir de la versión 0.1:
+Las imágenes multiarquitectura (`linux/amd64`, `linux/arm64`, así que también una
+Raspberry Pi 4/5 con sistema de 64 bits) se publican en
+[`ghcr.io/electrolabopen/modbus-studio`](https://github.com/electrolabopen/modbus-studio/pkgs/container/modbus-studio):
 
 ```bash
 docker run -d --name modbus-studio -p 127.0.0.1:8000:8000 \
-  -v modbus-studio-data:/data ghcr.io/electrolabopen/modbus-studio:latest
+  -v modbus-studio-data:/data ghcr.io/electrolabopen/modbus-studio:edge
 ```
 
-Mientras tanto, constrúyela localmente con `docker compose build`.
+| Tag | |
+|---|---|
+| `edge` | el último commit de `main` que pasó el CI |
+| `sha-<commit>` | un commit concreto de `main` |
+| `0.1.0`, `0.1`, `latest` | versiones publicadas, a partir de la 0.1 |
+
+La imagen escucha en el puerto 8000 dentro del contenedor; publícalo en `127.0.0.1` como
+arriba, o lee [Uso en un gateway o en la red de planta](#uso-en-un-gateway-o-en-la-red-de-planta)
+antes de abrirlo a la red. El workspace y el registro de escrituras viven en `/data`. Para
+un adaptador USB-RS485 añade `--device /dev/ttyUSB0` ([`docs/rtu-linux.md`](docs/rtu-linux.md)).
 
 ### Desde el código fuente
 
@@ -274,6 +284,7 @@ Las guías están en inglés.
 | [`docs/mqtt.md`](docs/mqtt.md) | Exportador MQTT: topics, payload JSON, QoS, TLS, Mosquitto |
 | [`docs/examples/simulator-map.csv`](docs/examples/simulator-map.csv) | Mapa de registros en CSV del simulador incluido |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Fases, lo que cada una debe cumplir, notas de diseño |
+| [`docs/releasing.md`](docs/releasing.md) | Publicación de la imagen y de versiones (mantenedores) |
 | [`CHANGELOG.md`](CHANGELOG.md) | Cambios por versión |
 | `http://127.0.0.1:8000/docs` | La API REST (OpenAPI), servida por la propia aplicación |
 

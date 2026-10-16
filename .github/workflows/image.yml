@@ -1,0 +1,149 @@
+name: Image
+
+# Builds the container image natively on an amd64 and an arm64 runner, starts each one
+# and checks it serves the UI, then (with `publish`) joins both into one multi-arch
+# image on ghcr.io. Called by ci.yml (edge, from main) and release.yml (versions).
+
+on:
+  workflow_call:
+    inputs:
+      publish:
+        description: Push to ghcr.io; otherwise only build and test.
+        type: boolean
+        default: false
+      tags:
+        description: Tags, in docker/metadata-action syntax.
+        type: string
+        default: type=edge,branch=main
+      flavor:
+        description: Flavor, in docker/metadata-action syntax (e.g. latest=false).
+        type: string
+        default: latest=false
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build:
+    name: build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            arch: x86_64
+            slug: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            arch: aarch64
+            slug: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: modbus-studio:test
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=image-${{ matrix.slug }}
+          cache-to: type=gha,mode=max,scope=image-${{ matrix.slug }}
+      - name: "Smoke test: the image starts and serves the UI"
+        run: |
+          docker run -d --name app -p 127.0.0.1:8000:8000 modbus-studio:test
+          test "$(docker exec app uname -m)" = "${{ matrix.arch }}"
+          for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:8000/api/health && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8000/ | grep -q "<title>modbus-studio</title>"
+          # Runs as the unprivileged user and can write its state volume.
+          test "$(docker exec app id -un)" = modbus
+          docker exec app test -w /data
+      - if: failure()
+        run: docker logs app
+      - name: Log in to ghcr.io
+        if: inputs.publish
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push by digest (tagged in the merge job)
+        if: inputs.publish
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=image-${{ matrix.slug }}
+      - name: Keep the digest
+        if: inputs.publish
+        run: |
+          mkdir -p "${{ runner.temp }}/digests"
+          digest="${{ steps.push.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+      - if: inputs.publish
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.slug }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: publish (linux/amd64 + linux/arm64)
+    if: inputs.publish
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digest-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: ${{ inputs.tags }}
+          flavor: ${{ inputs.flavor }}
+      - name: Create the multi-arch image
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          # Word splitting is wanted: one "-t <tag>" per tag, one argument per digest.
+          # shellcheck disable=SC2046
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.IMAGE }}@sha256:%s ' *)
+      - name: Check both platforms are in it
+        run: |
+          tag="$(jq -r '.tags[0]' <<< "$DOCKER_METADATA_OUTPUT_JSON")"
+          docker buildx imagetools inspect "$tag"
+          docker buildx imagetools inspect "$tag" --format '{{json .Manifest}}' \
+            | jq -e '[.manifests[].platform | "\(.os)/\(.architecture)"] | index("linux/amd64") and index("linux/arm64")'

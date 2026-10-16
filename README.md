@@ -132,15 +132,25 @@ before exposing anything (see the guides).
 
 ### Docker image
 
-Multi-arch images (`linux/amd64`, `linux/arm64`) will be published to
-[`ghcr.io/electrolabopen/modbus-studio`](https://github.com/electrolabopen/modbus-studio/pkgs/container/modbus-studio) from release 0.1:
+Multi-arch images (`linux/amd64`, `linux/arm64`, so also a Raspberry Pi 4/5 with a
+64-bit OS) are published to
+[`ghcr.io/electrolabopen/modbus-studio`](https://github.com/electrolabopen/modbus-studio/pkgs/container/modbus-studio):
 
 ```bash
 docker run -d --name modbus-studio -p 127.0.0.1:8000:8000 \
-  -v modbus-studio-data:/data ghcr.io/electrolabopen/modbus-studio:latest
+  -v modbus-studio-data:/data ghcr.io/electrolabopen/modbus-studio:edge
 ```
 
-Until then, build it locally with `docker compose build`.
+| Tag | |
+|---|---|
+| `edge` | the latest commit on `main` that passed CI |
+| `sha-<commit>` | a given commit on `main` |
+| `0.1.0`, `0.1`, `latest` | releases, from 0.1 on |
+
+The image listens on port 8000 inside the container; publish it on `127.0.0.1` as above,
+or see [Running on a gateway or plant network](#running-on-a-gateway-or-plant-network)
+before opening it to the network. The workspace and the write log live in `/data`. For a
+USB-RS485 adapter add `--device /dev/ttyUSB0` ([`docs/rtu-linux.md`](docs/rtu-linux.md)).
 
 ### From source
 
@@ -262,6 +272,7 @@ For 64-bit values the same two operations apply to all four words.
 | [`docs/mqtt.md`](docs/mqtt.md) | MQTT exporter: topics, JSON payload, QoS, TLS, Mosquitto |
 | [`docs/examples/simulator-map.csv`](docs/examples/simulator-map.csv) | CSV register map of the bundled simulator |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phases, what each one has to pass, design notes |
+| [`docs/releasing.md`](docs/releasing.md) | Publishing the image and releases (maintainers) |
 | [`CHANGELOG.md`](CHANGELOG.md) | Changes per release |
 | `http://127.0.0.1:8000/docs` | The REST API (OpenAPI), served by the app itself |
 

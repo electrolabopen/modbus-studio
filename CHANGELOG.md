@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Added
+- Multi-arch image (`linux/amd64`, `linux/arm64`) on `ghcr.io/electrolabopen/modbus-studio`:
+  every push to `main` that passes CI is published as `edge` and `sha-<commit>`. CI also
+  builds each architecture natively (an arm64 runner for linux/arm64), starts it and
+  checks it serves the UI.
 - `README.es.md`, a Spanish README, and a GIF of the app in use at the top of both READMEs.
 - A documentation index in the README.
 - Exporter settings in the UI: an **Exporters** dialog with an InfluxDB and an MQTT tab,
