@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+- The image's `org.opencontainers.image.version` label is the version without the
+  "v" of the git tag (`0.2.0`, not `v0.2.0`); images from `main` say `edge`.
+
 ## [0.1.0] - 2026-10-15
 
 First release. A Modbus master in the browser for Modbus TCP, RTU over TCP and RTU on a

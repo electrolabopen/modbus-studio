@@ -16,6 +16,19 @@ default and has an optional bearer token.
 | **7. Integrations** | InfluxDB and MQTT exporters with configurable mapping, optional compose profiles for InfluxDB and Mosquitto | Data in InfluxDB/Grafana and in `mosquitto_sub` | ✅ part 1: InfluxDB 2.x exporter, compose profile with InfluxDB + Grafana and a simulator dashboard, `docs/influxdb.md`. Part 2: MQTT exporter: topic template, JSON payload, QoS, retain, TLS; compose profile with Mosquitto, CI check with `mosquitto_sub`, `docs/mqtt.md`. Part 3: Exporters dialog in the UI with live status, counters and a connection test; secrets typed, never shown |
 | **8. Release 0.1** | README with screenshots and a GIF, docs, PyPI package, **multi-arch image `linux/amd64` + `linux/arm64` on GHCR (`ghcr.io/electrolabopen/modbus-studio`)** | `pip install modbus-studio` works on Linux, Windows and macOS; `docker run` works on x86 and on a Raspberry Pi 4/5 (64-bit OS) | ✅ released as [v0.1.0](https://github.com/electrolabopen/modbus-studio/releases/tag/v0.1.0) on 2026-10-15: on [PyPI](https://pypi.org/project/modbus-studio/0.1.0/) and as `ghcr.io/electrolabopen/modbus-studio:0.1.0` (amd64, arm64). Part 1: `README.es.md`, a GIF, docs reviewed, toolbar menu on phones. Part 2: multi-arch image built natively per architecture, `edge` from `main`. Part 3: PyPI package with the UI, install tested on Linux/Windows/macOS, `release.yml` with trusted publishing |
 
+## Pending for 0.2.0
+
+Tests on physical hardware, done by the maintainer when it is available:
+
+- [ ] **USB-RS485 adapter** (phase 6, part 3): port discovery with a real adapter
+  (`/dev/ttyUSB*`, `/dev/serial/by-id`, COM ports on Windows), polling and writing a
+  real RTU device, slow devices and the late-reply handling described in the design
+  notes below. So far RTU is tested only over virtual ports (socat, com0com).
+- [ ] **Raspberry Pi 4/5 (64-bit OS)**: `docker run ghcr.io/electrolabopen/modbus-studio`
+  and `pip install modbus-studio` on the Pi itself, start-up time, and RTU through a
+  USB-RS485 adapter on the Pi. So far the arm64 image is tested on GitHub's arm64
+  runners and under QEMU.
+
 ## CSV register map format (phase 4)
 
 ```csv

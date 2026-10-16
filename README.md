@@ -45,7 +45,8 @@ network and open it from any browser.
 
 | Feature | Where |
 |---|---|
-| RTU with a physical USB-RS485 adapter: tested only over virtual ports so far | phase 6, part 3 |
+| RTU with a physical USB-RS485 adapter: tested only over virtual ports so far | 0.2.0 (phase 6, part 3) |
+| A physical Raspberry Pi 4/5: the arm64 image is tested on GitHub's arm64 runners and under QEMU so far | 0.2.0 |
 
 See the [roadmap](docs/ROADMAP.md) for the phases and what each one has to pass.
 

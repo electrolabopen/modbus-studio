@@ -48,7 +48,8 @@ en español.
 
 | Funcionalidad | Dónde |
 |---|---|
-| RTU con un adaptador USB-RS485 físico: por ahora solo probado con puertos virtuales | fase 6, parte 3 |
+| RTU con un adaptador USB-RS485 físico: por ahora solo probado con puertos virtuales | 0.2.0 (fase 6, parte 3) |
+| Una Raspberry Pi 4/5 física: por ahora la imagen arm64 se prueba en los runners arm64 de GitHub y bajo QEMU | 0.2.0 |
 
 La [hoja de ruta](docs/ROADMAP.md) detalla las fases y lo que cada una debe cumplir.
 

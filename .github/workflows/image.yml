@@ -51,6 +51,10 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
+          # The same tags as the merge job, so org.opencontainers.image.version is the
+          # first of them (0.1.0, or edge) instead of the git ref (v0.1.0).
+          tags: ${{ inputs.tags }}
+          flavor: ${{ inputs.flavor }}
       - name: Build
         uses: docker/build-push-action@v6
         with:
