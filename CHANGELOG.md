@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Added
+- `README.es.md`, a Spanish README, and a GIF of the app in use at the top of both READMEs.
+- A documentation index in the README.
 - Exporter settings in the UI: an **Exporters** dialog with an InfluxDB and an MQTT tab,
   the live status (state, last error, points or messages sent, errors, dropped,
   pending) and **Test connection**, which tries the settings in the form without saving
@@ -126,6 +128,11 @@
   out, with a hint when `127.0.0.1` is used inside a container. Shown in the sidebar.
 
 ### Fixed
+- The top bar no longer overflows on narrow screens: below 720 px the toolbar buttons
+  move into a **☰ Menu** drop-down (closed by picking an item, Escape or a tap outside),
+  and between 720 and 1200 px they wrap onto a second row. Polling windows fit phones
+  narrower than 340 px.
+- CONTRIBUTING: the development setup ran `cd frontend` from `backend/`.
 - The sidebar no longer splits an RTU connection's line settings (`COM21 · 19200 8E1`)
   over two lines: the RW and ✕ buttons moved next to the name.
 - RTU and RTU over TCP: after a request was cancelled in flight (stopping or editing a

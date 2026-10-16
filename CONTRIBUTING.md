@@ -22,7 +22,7 @@ connection type and the TX/RX frames from the traffic monitor.
 ```bash
 git clone https://github.com/electrolabopen/modbus-studio.git && cd modbus-studio
 cd backend && python -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]"
-cd frontend && npm install
+cd ../frontend && npm install
 ```
 
 ## Checks (the same ones CI runs)

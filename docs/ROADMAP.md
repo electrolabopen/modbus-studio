@@ -14,7 +14,7 @@ default and has an optional bearer token.
 | **5. Traffic monitor + chart** | TX/RX hex panel with filter, pause and export; uPlot chart of selected registers | Frames visible live; the simulator sine wave plotted | ✅ |
 | **6. RTU on real hardware** | Serial port discovery, `docs/rtu-linux.md` (dialout, udev, `/dev/serial/by-id`, RS-485 adapters, Docker `--device`) | Tested with socat ptys in CI and with a real USB-RS485 adapter | 🟡 part 1 ✅ port discovery, RTU in the UI, open errors. Part 2 ✅ simulator on a serial port, socat pty tests in CI, `docs/rtu-linux.md` with a com0com section, end-to-end test on Windows with com0com 3.0.0.0 (UI, traffic, window edits mid-request). Part 3 ⏳ pending: a real USB-RS485 adapter — **detecting a physical adapter has not been validated yet** (only tested without hardware) |
 | **7. Integrations** | InfluxDB and MQTT exporters with configurable mapping, optional compose profiles for InfluxDB and Mosquitto | Data in InfluxDB/Grafana and in `mosquitto_sub` | ✅ part 1: InfluxDB 2.x exporter, compose profile with InfluxDB + Grafana and a simulator dashboard, `docs/influxdb.md`. Part 2: MQTT exporter: topic template, JSON payload, QoS, retain, TLS; compose profile with Mosquitto, CI check with `mosquitto_sub`, `docs/mqtt.md`. Part 3: Exporters dialog in the UI with live status, counters and a connection test; secrets typed, never shown |
-| **8. Release 0.1** | README with screenshots and a GIF, docs, PyPI package, **multi-arch image `linux/amd64` + `linux/arm64` on GHCR (`ghcr.io/electrolabopen/modbus-studio`)** | `pip install modbus-studio` works on Linux, Windows and macOS; `docker run` works on x86 and on a Raspberry Pi 4/5 (64-bit OS) | |
+| **8. Release 0.1** | README with screenshots and a GIF, docs, PyPI package, **multi-arch image `linux/amd64` + `linux/arm64` on GHCR (`ghcr.io/electrolabopen/modbus-studio`)** | `pip install modbus-studio` works on Linux, Windows and macOS; `docker run` works on x86 and on a Raspberry Pi 4/5 (64-bit OS) | 🟡 part 1: `README.es.md`, a GIF of the app in use, docs reviewed, toolbar menu on phones. Part 2: multi-arch image on GHCR. Part 3: PyPI |
 
 ## CSV register map format (phase 4)
 
@@ -38,8 +38,8 @@ address,alias,type,byte_order,scale,unit
   (`codec.from_engineering`). The UI must show the raw value that will actually be
   written.
 - The chart history lives in the browser (up to an hour per series) and starts when a
-  value is plotted; a reload starts it empty. Server-side history, if needed, belongs
-  with the InfluxDB exporter in phase 7.
+  value is plotted; a reload starts it empty. Long-term history is the InfluxDB
+  exporter's job (phase 7, `docs/influxdb.md`).
 - `stop_all()` can cancel a request that is in flight. Its reply still arrives, and RTU
   frames carry no transaction ID, so the next request on the connection first waits for
   it (at most the connection timeout) and pymodbus drops it. Tested over socat ptys and

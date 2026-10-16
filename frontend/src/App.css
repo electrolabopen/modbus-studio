@@ -20,11 +20,85 @@
 .brand {
   font-weight: 600;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .toolbar {
   display: flex;
+  align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+
+.toolbar-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.menu-toggle {
+  display: none;
+}
+
+/* Not enough room for every button on one line: let them wrap onto a second row. */
+@media (max-width: 1200px) {
+  .topbar {
+    height: auto;
+    min-height: 48px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+}
+
+/* Phones: the buttons move into a drop-down menu under the top bar. */
+@media (max-width: 720px) {
+  .topbar {
+    position: relative;
+    gap: 8px;
+    padding: 0 12px;
+    height: 48px;
+  }
+
+  .menu-toggle {
+    display: inline-flex;
+  }
+
+  .toolbar-items {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+  }
+
+  .toolbar-items.open {
+    display: flex;
+  }
+
+  .toolbar-items .btn {
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 40px;
+    text-align: left;
+  }
+
+  .topbar-right {
+    min-width: 0;
+  }
+
+  .topbar-right .badge {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 .topbar-right {
@@ -199,7 +273,7 @@ select:focus,
 .workspace {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
   align-content: start;
   gap: 12px;
   padding: 12px;

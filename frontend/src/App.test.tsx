@@ -67,4 +67,24 @@ describe('App', () => {
     expect(JSON.parse(ws.sent[0])).toEqual({ type: 'auth', token: 's3cret' })
     sessionStorage.clear()
   })
+
+  it('opens and closes the toolbar menu used on narrow screens', async () => {
+    mockHealth(healthy())
+    render(<App />)
+    const toggle = screen.getByRole('button', { name: '☰ Menu' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(document.getElementById('toolbar-items')).toHaveClass('open')
+
+    // Picking an item closes it, and so do Escape and a tap outside.
+    fireEvent.click(screen.getByRole('button', { name: 'Chart' }))
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(toggle)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(toggle)
+    fireEvent.pointerDown(document.body)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  })
 })

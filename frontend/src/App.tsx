@@ -100,7 +100,24 @@ function Toolbar({ enabled, panel, onTogglePanel }: ToolbarProps) {
   const exporters = useExporters(enabled && dialog !== 'exporters')
   const [importFile, setImportFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // On narrow screens the buttons live in a drop-down menu.
+  const [menuOpen, setMenuOpen] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
+  const toolbar = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (e: Event) => {
+      const outside = !toolbar.current?.contains(e.target as Node)
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : outside) setMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', close)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', close)
+    }
+  }, [menuOpen])
 
   const exportWorkspace = async () => {
     setError(null)
@@ -117,81 +134,97 @@ function Toolbar({ enabled, panel, onTogglePanel }: ToolbarProps) {
   }
 
   return (
-    <div className="toolbar">
-      <button className="btn" disabled={!enabled} onClick={() => setDialog('connection')}>
-        + Connection
-      </button>
+    <div className="toolbar" ref={toolbar}>
       <button
-        className="btn"
-        disabled={!enabled || !hasConnections}
-        title={hasConnections ? undefined : 'Create a connection first'}
-        onClick={() => setDialog('poll')}
+        type="button"
+        className="btn menu-toggle"
+        aria-expanded={menuOpen}
+        aria-controls="toolbar-items"
+        onClick={() => setMenuOpen((open) => !open)}
       >
-        + Window
+        ☰ Menu
       </button>
-      <button
-        className="btn"
-        disabled={!enabled}
-        title="Download the connections and windows as JSON"
-        onClick={exportWorkspace}
+      <div
+        id="toolbar-items"
+        className={menuOpen ? 'toolbar-items open' : 'toolbar-items'}
+        // Picking an item closes the menu (the file picker opens all the same).
+        onClick={(e) => (e.target as HTMLElement).closest('button') && setMenuOpen(false)}
       >
-        Export workspace
-      </button>
-      <button
-        className="btn"
-        disabled={!enabled}
-        title="Load connections and windows from a workspace JSON file"
-        onClick={() => fileInput.current?.click()}
-      >
-        Import workspace…
-      </button>
-      <input
-        ref={fileInput}
-        type="file"
-        accept=".json,application/json"
-        hidden
-        aria-label="Workspace file"
-        onChange={(e) => {
-          setImportFile(e.target.files?.[0] ?? null)
-          e.target.value = ''
-        }}
-      />
-      <button
-        className="btn"
-        aria-pressed={panel === 'chart'}
-        disabled={!enabled}
-        onClick={() => onTogglePanel('chart')}
-      >
-        Chart
-      </button>
-      <button
-        className="btn"
-        aria-pressed={panel === 'traffic'}
-        disabled={!enabled}
-        onClick={() => onTogglePanel('traffic')}
-      >
-        Traffic
-      </button>
-      <button
-        className="btn"
-        aria-pressed={panel === 'writes'}
-        disabled={!enabled}
-        onClick={() => onTogglePanel('writes')}
-      >
-        Write log
-      </button>
-      <button
-        className="btn btn-exporters"
-        disabled={!enabled}
-        title={exportersSummary(exporters)}
-        onClick={() => setDialog('exporters')}
-      >
-        {exporters &&
-          (['influxdb', 'mqtt'] as const)
-            .filter((kind) => exporters[kind].status.state !== 'disabled')
-            .map((kind) => <StatusDot key={kind} status={exporters[kind].status} />)}
-        Exporters
-      </button>
+        <button className="btn" disabled={!enabled} onClick={() => setDialog('connection')}>
+          + Connection
+        </button>
+        <button
+          className="btn"
+          disabled={!enabled || !hasConnections}
+          title={hasConnections ? undefined : 'Create a connection first'}
+          onClick={() => setDialog('poll')}
+        >
+          + Window
+        </button>
+        <button
+          className="btn"
+          disabled={!enabled}
+          title="Download the connections and windows as JSON"
+          onClick={exportWorkspace}
+        >
+          Export workspace
+        </button>
+        <button
+          className="btn"
+          disabled={!enabled}
+          title="Load connections and windows from a workspace JSON file"
+          onClick={() => fileInput.current?.click()}
+        >
+          Import workspace…
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          aria-label="Workspace file"
+          onChange={(e) => {
+            setImportFile(e.target.files?.[0] ?? null)
+            e.target.value = ''
+          }}
+        />
+        <button
+          className="btn"
+          aria-pressed={panel === 'chart'}
+          disabled={!enabled}
+          onClick={() => onTogglePanel('chart')}
+        >
+          Chart
+        </button>
+        <button
+          className="btn"
+          aria-pressed={panel === 'traffic'}
+          disabled={!enabled}
+          onClick={() => onTogglePanel('traffic')}
+        >
+          Traffic
+        </button>
+        <button
+          className="btn"
+          aria-pressed={panel === 'writes'}
+          disabled={!enabled}
+          onClick={() => onTogglePanel('writes')}
+        >
+          Write log
+        </button>
+        <button
+          className="btn btn-exporters"
+          disabled={!enabled}
+          title={exportersSummary(exporters)}
+          onClick={() => setDialog('exporters')}
+        >
+          {exporters &&
+            (['influxdb', 'mqtt'] as const)
+              .filter((kind) => exporters[kind].status.state !== 'disabled')
+              .map((kind) => <StatusDot key={kind} status={exporters[kind].status} />)}
+          Exporters
+        </button>
+      </div>
       {error && (
         <span className="toolbar-error" role="alert">
           {error}

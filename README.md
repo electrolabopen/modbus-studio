@@ -4,11 +4,15 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Container image](https://img.shields.io/badge/image-ghcr.io-2496ED?logo=docker&logoColor=white)](https://github.com/electrolabopen/modbus-studio/pkgs/container/modbus-studio)
 
+**English** · [Español](README.es.md)
+
 An open-source Modbus master that runs in your browser. It polls Modbus TCP, RTU and
 RTU-over-TCP devices, decodes their registers into engineering values, writes coils and
 registers, and shows every frame on the wire. It is written from scratch from the public
 Modbus specification. Run it on your laptop, or on a gateway or Raspberry Pi on the plant
 network and open it from any browser.
+
+![modbus-studio in use: a polling window, the real-time chart, the traffic monitor and the exporters](docs/screenshots/demo.gif)
 
 > **Status: pre-alpha.** Everything under [Working now](#working-now) is done and tested;
 > the 0.1 release is [in development](#in-development). See the
@@ -35,13 +39,14 @@ network and open it from any browser.
 | API | REST API + WebSocket, the same API the UI uses; OpenAPI at `/docs` |
 | Security | Binds to 127.0.0.1 by default, optional API token |
 | Docker | `docker compose up` with the bundled simulator |
+| Phones and tablets | The toolbar folds into a menu on narrow screens, so the UI works from a phone on the plant floor |
 
 ### In development
 
 | Feature | Where |
 |---|---|
 | RTU with a physical USB-RS485 adapter: tested only over virtual ports so far | phase 6, part 3 |
-| **Release 0.1**: `pip install modbus-studio`, multi-arch image (amd64/arm64) on GHCR, docs and a GIF | phase 8 |
+| **Release 0.1**: multi-arch image (amd64/arm64) on GHCR, `pip install modbus-studio` from PyPI | phase 8, parts 2 and 3 |
 
 See the [roadmap](docs/ROADMAP.md) for the phases and what each one has to pass.
 
@@ -96,7 +101,10 @@ Inside the app container `127.0.0.1` is the container itself, so a connection to
 ```bash
 docker compose up -d --build --wait
 python docker/smoke_test.py      # app -> simulator through the compose network
-python docker/smoke_test.py persist-write && docker compose restart modbus-studio   && python docker/smoke_test.py persist-check   # the workspace survives a restart
+# the workspace survives the app container being killed:
+python docker/smoke_test.py persist-write
+docker compose kill modbus-studio && docker compose up -d --wait
+python docker/smoke_test.py persist-check
 ```
 
 ### With InfluxDB and Grafana
@@ -118,6 +126,9 @@ docker compose exec mosquitto mosquitto_sub -u modbus-studio -P modbus-studio -t
 
 adds Mosquitto, and every polled value is published to it as JSON. Both profiles can
 run together (`--profile influxdb --profile mqtt`). See [`docs/mqtt.md`](docs/mqtt.md).
+
+The passwords and the token of these profiles are **development defaults**: change them
+before exposing anything (see the guides).
 
 ### Docker image
 
@@ -241,6 +252,18 @@ position per second.
 | DCBA | `[DC, BA]` | little-endian |
 
 For 64-bit values the same two operations apply to all four words.
+
+## Documentation
+
+| Guide | |
+|---|---|
+| [`docs/rtu-linux.md`](docs/rtu-linux.md) | USB-RS485 adapters on Linux, udev, Docker `--device`, wiring; RTU without hardware (socat, com0com) |
+| [`docs/influxdb.md`](docs/influxdb.md) | InfluxDB exporter: what is written, settings, buffering, Grafana, credentials |
+| [`docs/mqtt.md`](docs/mqtt.md) | MQTT exporter: topics, JSON payload, QoS, TLS, Mosquitto |
+| [`docs/examples/simulator-map.csv`](docs/examples/simulator-map.csv) | CSV register map of the bundled simulator |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phases, what each one has to pass, design notes |
+| [`CHANGELOG.md`](CHANGELOG.md) | Changes per release |
+| `http://127.0.0.1:8000/docs` | The REST API (OpenAPI), served by the app itself |
 
 ## Contributing
 
