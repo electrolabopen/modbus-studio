@@ -1,0 +1,114 @@
+name: Release
+
+# Pushing a tag vX.Y.Z (on a commit of main whose CI is green) releases X.Y.Z:
+#   1. the tag must match the version in backend/src/modbus_studio/__init__.py;
+#   2. the package is built and its wheel tested on Linux, Windows and macOS;
+#   3. after approval of the "pypi" environment it goes to PyPI (trusted publishing,
+#      no token);
+#   4. the multi-arch image is tagged X.Y.Z, X.Y and latest on ghcr.io;
+#   5. a GitHub release is created with the CHANGELOG section and the files.
+# See docs/releasing.md.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: The tag matches the package version and has a CHANGELOG section
+        id: check
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          package="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' backend/src/modbus_studio/__init__.py)"
+          if [ "$version" != "$package" ]; then
+            echo "::error::tag $GITHUB_REF_NAME but the package version is $package"
+            exit 1
+          fi
+          if ! grep -q "^## \[$version\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [$version]' section"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  package:
+    needs: version
+    uses: ./.github/workflows/package.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  pypi:
+    name: publish to PyPI
+    needs: [version, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/project/modbus-studio/${{ needs.version.outputs.version }}/
+    permissions:
+      # OpenID Connect token for PyPI's trusted publishing.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  image:
+    needs: [version, pypi]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/image.yml
+    with:
+      publish: true
+      tags: |
+        type=semver,pattern={{version}}
+        type=semver,pattern={{major}}.{{minor}}
+      flavor: latest=auto
+
+  github-release:
+    name: GitHub release
+    needs: [version, pypi, image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          # The CHANGELOG section of this version, without its heading.
+          awk -v head="## [$VERSION]" '
+            index($0, head) == 1 { on = 1; next }
+            on && index($0, "## [") == 1 { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          test -s notes.md
+          cat >> notes.md <<EOF
+
+          ---
+          \`pip install modbus-studio==$VERSION\` · \`docker pull ghcr.io/${GITHUB_REPOSITORY}:$VERSION\`
+          EOF
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --verify-tag --title "modbus-studio $VERSION" --notes-file notes.md

@@ -1,0 +1,99 @@
+name: Package
+
+# Builds the Python package (sdist and wheel, with the compiled UI inside), then
+# installs the wheel on Linux, Windows and macOS and checks it serves the UI and polls
+# the bundled simulator. Called by ci.yml and release.yml; the dist/ artifact is what
+# release.yml publishes to PyPI.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Expected package version (from the tag); empty to skip the check.
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the UI into backend/src/modbus_studio/static
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Build sdist and wheel
+        run: |
+          # backend/LICENSE is a copy, packed into the distributions.
+          cmp LICENSE backend/LICENSE
+          python -m pip install build twine
+          python -m build backend --outdir dist
+          python -m twine check --strict dist/*
+      - name: Check what is inside
+        env:
+          EXPECTED: ${{ inputs.version }}
+        run: |
+          python - <<'EOF'
+          import glob, os, tarfile, zipfile
+          (wheel,) = glob.glob("dist/*.whl")
+          (sdist,) = glob.glob("dist/*.tar.gz")
+          names = zipfile.ZipFile(wheel).namelist()
+          assert "modbus_studio/static/index.html" in names, "the wheel has no UI"
+          assert any(n.endswith("dist-info/licenses/LICENSE") for n in names), "no LICENSE"
+          assert not any("/tests/" in n for n in names), "tests in the wheel"
+          assert any(n.endswith("modbus_studio/static/index.html")
+                     for n in tarfile.open(sdist).getnames()), "the sdist has no UI"
+          expected = os.environ["EXPECTED"]
+          if expected:
+              assert os.path.basename(wheel) == f"modbus_studio-{expected}-py3-none-any.whl", (
+                  f"{wheel} is not version {expected}")
+          print(wheel, sdist, "ok")
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  test:
+    name: install (${{ matrix.os }}, py${{ matrix.python }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Install the wheel
+        shell: bash
+        run: python -m pip install dist/*.whl
+      - name: Check the installed package
+        shell: bash
+        # Outside the source tree, so only the installed package can be imported.
+        working-directory: ${{ runner.temp }}
+        run: python "${{ github.workspace }}/.github/scripts/package_smoke.py" ${{ inputs.version }}

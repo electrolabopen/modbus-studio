@@ -100,6 +100,12 @@ jobs:
       - if: always()
         run: docker compose --profile influxdb --profile mqtt down --volumes
 
+  # sdist and wheel with the UI inside; the wheel installed and run on Linux, Windows
+  # and macOS (what release.yml publishes to PyPI).
+  package:
+    needs: [backend, frontend]
+    uses: ./.github/workflows/package.yml
+
   # The image for linux/amd64 and linux/arm64, each built and started on its own
   # architecture. Pushes to main that pass every job above become ghcr.io/...:edge
   # (and :sha-<commit>); versioned tags and :latest come from release.yml.

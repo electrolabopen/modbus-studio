@@ -136,6 +136,16 @@ pueden ir juntos (`--profile influxdb --profile mqtt`). Ver [`docs/mqtt.md`](doc
 Las contraseñas y el token de estos perfiles son **valores de desarrollo**: cámbialos
 antes de exponer nada (ver las guías).
 
+### Con pip
+
+A partir de la 0.1.0, modbus-studio está en PyPI, con la UI incluida (no hace falta Node.js):
+
+```bash
+pipx install modbus-studio      # o: pip install modbus-studio
+modbus-studio                   # http://127.0.0.1:8000
+modbus-studio-sim               # opcional: el simulador de esclavo en :5020 / :5021
+```
+
 ### Imagen Docker
 
 Las imágenes multiarquitectura (`linux/amd64`, `linux/arm64`, así que también una

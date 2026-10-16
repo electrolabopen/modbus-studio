@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Added
+- Python package for PyPI: the sdist and the wheel include the compiled UI and the
+  license; `modbus-studio --version` and `--help`. CI installs the wheel on Linux,
+  Windows and macOS (Python 3.10 and 3.13) and checks it serves the UI and polls the
+  simulator.
+- `release.yml`: a `v*` tag checks the version and the CHANGELOG, builds and tests the
+  package, publishes it to PyPI with trusted publishing after approval, tags the image
+  `X.Y.Z`, `X.Y` and `latest`, and creates the GitHub release. See `docs/releasing.md`.
 - Multi-arch image (`linux/amd64`, `linux/arm64`) on `ghcr.io/electrolabopen/modbus-studio`:
   every push to `main` that passes CI is published as `edge` and `sha-<commit>`. CI also
   builds each architecture natively (an arm64 runner for linux/arm64), starts it and

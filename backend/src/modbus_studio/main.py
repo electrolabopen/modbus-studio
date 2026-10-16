@@ -89,8 +89,20 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
-def run() -> None:
+def run(argv: list[str] | None = None) -> None:
+    import argparse
+
     import uvicorn
+
+    parser = argparse.ArgumentParser(
+        prog="modbus-studio",
+        description="Open-source Modbus master in the browser. Settings come from "
+        "MODBUS_STUDIO_* environment variables: HOST (default 127.0.0.1), PORT (8000), "
+        "TOKEN, STATE_FILE, WORKSPACE, WRITE_LOG_FILE, TRAFFIC_BUFFER. "
+        "See https://github.com/electrolabopen/modbus-studio",
+    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.parse_args(argv)
 
     settings = get_settings()
     # uvicorn only configures its own loggers; without this our INFO messages are dropped.

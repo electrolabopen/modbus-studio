@@ -130,6 +130,16 @@ run together (`--profile influxdb --profile mqtt`). See [`docs/mqtt.md`](docs/mq
 The passwords and the token of these profiles are **development defaults**: change them
 before exposing anything (see the guides).
 
+### With pip
+
+From 0.1.0 on, modbus-studio is on PyPI, with the UI included (no Node.js needed):
+
+```bash
+pipx install modbus-studio      # or: pip install modbus-studio
+modbus-studio                   # http://127.0.0.1:8000
+modbus-studio-sim               # optional: the slave simulator on :5020 / :5021
+```
+
 ### Docker image
 
 Multi-arch images (`linux/amd64`, `linux/arm64`, so also a Raspberry Pi 4/5 with a
