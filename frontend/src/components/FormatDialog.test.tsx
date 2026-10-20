@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Cell } from '../api/types'
+import { DEFAULT_FORMAT, type Cell } from '../api/types'
 import { useStudio } from '../store'
 import { cell, pollData, pollView } from '../test/fixtures'
 import { PollWindow } from './PollWindow'
@@ -83,6 +83,43 @@ describe('cell formats', () => {
     fireEvent.doubleClick(row(0))
     fireEvent.change(screen.getByLabelText('Scale'), { target: { value: '0' } })
     expect(screen.getByText('Scale must be a non-zero number')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
+  })
+})
+
+describe('MQTT deadband', () => {
+  it('sets a deadband on a range', async () => {
+    renderWindow([cell(0, 10), cell(1, 11)])
+    fireEvent.click(row(0))
+    fireEvent.click(row(1), { shiftKey: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Format…' }))
+    const deadband = screen.getByLabelText('MQTT deadband') as HTMLInputElement
+    expect(deadband.value).toBe('')
+    fireEvent.change(deadband, { target: { value: '0.5' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Apply' })))
+    expect(calls[0].body).toMatchObject({ start: 0, end: 1, deadband: 0.5 })
+  })
+
+  it('clears a deadband back to the exporter', async () => {
+    const view = pollView('w1')
+    view.definition.formats = { 0: { ...DEFAULT_FORMAT, deadband: 2 } }
+    const { handle } = useStudio.getState()
+    handle({ type: 'snapshot', connections: [], polls: [view] })
+    handle({ type: 'poll', data: pollData('w1', 1, [cell(0, 10)]) })
+    render(<PollWindow view={view} />)
+    fireEvent.doubleClick(row(0))
+    const deadband = screen.getByLabelText('MQTT deadband') as HTMLInputElement
+    expect(deadband.value).toBe('2')
+    fireEvent.change(deadband, { target: { value: '' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Apply' })))
+    expect(calls[0].body).toMatchObject({ start: 0, end: 0, deadband: null })
+  })
+
+  it('rejects a negative deadband', () => {
+    renderWindow([cell(0, 10)])
+    fireEvent.doubleClick(row(0))
+    fireEvent.change(screen.getByLabelText('MQTT deadband'), { target: { value: '-1' } })
+    expect(screen.getByText(/Deadband must be a number, 0 or more/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
   })
 })

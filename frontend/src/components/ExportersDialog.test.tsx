@@ -17,6 +17,7 @@ const status = (overrides: Partial<ExporterStatus> = {}): ExporterStatus => ({
   errors: 0,
   dropped: 0,
   pending: 3,
+  unchanged: 0,
   connected: null,
   ...overrides,
 })
@@ -51,6 +52,9 @@ function exporters(): ExportersView {
         qos: 0,
         retain: false,
         aliased_only: false,
+        publish_mode: 'every_poll',
+        deadband: 0,
+        heartbeat_s: 0,
         keepalive_s: 60,
         buffer_size: 10000,
         tls: false,
@@ -95,6 +99,15 @@ function mockServer(respond?: (call: Call) => Response | undefined) {
         JSON.stringify({
           config: { ...config, token_set: token === null || !!token },
           status: view.influxdb.status,
+        }),
+      )
+    }
+    if (url === '/api/exporters/mqtt' && call.method === 'PUT') {
+      const { password, ...config } = call.body ?? {}
+      return new Response(
+        JSON.stringify({
+          config: { ...config, password_set: !!password },
+          status: { ...view.mqtt.status, unchanged: 42 },
         }),
       )
     }
@@ -203,6 +216,42 @@ describe('ExportersDialog', () => {
       topic: 'plant/{window}',
       tls: true,
       password: 'pw',
+    })
+  })
+
+  it('sets MQTT to publish on change, with a deadband and a heartbeat', async () => {
+    const calls = mockServer()
+    render(<ExportersDialog onClose={() => {}} initialTab="mqtt" />)
+    const mode = (await screen.findByLabelText('Publish')) as HTMLSelectElement
+    expect(mode.value).toBe('every_poll')
+    expect(screen.queryByLabelText('Deadband')).not.toBeInTheDocument()
+
+    fireEvent.change(mode, { target: { value: 'on_change' } })
+    fireEvent.change(screen.getByLabelText('Deadband'), { target: { value: '0.5' } })
+    fireEvent.change(screen.getByLabelText('Heartbeat (s)'), { target: { value: '30' } })
+    expect(screen.getByText(/Unsaved changes/)).toBeInTheDocument()
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Save' })))
+
+    expect(calls.find((c) => c.method === 'PUT')?.body).toMatchObject({
+      publish_mode: 'on_change',
+      deadband: 0.5,
+      heartbeat_s: 30,
+      password: null,
+    })
+    expect(await screen.findByText('Saved and applied.')).toBeInTheDocument()
+    expect(screen.getByText('unchanged').nextSibling).toHaveTextContent('42')
+  })
+
+  it('treats an emptied deadband or heartbeat as 0', async () => {
+    const calls = mockServer()
+    render(<ExportersDialog onClose={() => {}} initialTab="mqtt" />)
+    fireEvent.change(await screen.findByLabelText('Publish'), { target: { value: 'on_change' } })
+    fireEvent.change(screen.getByLabelText('Deadband'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Heartbeat (s)'), { target: { value: '' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Save' })))
+    expect(calls.find((c) => c.method === 'PUT')?.body).toMatchObject({
+      deadband: 0,
+      heartbeat_s: 0,
     })
   })
 
