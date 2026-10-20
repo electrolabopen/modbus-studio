@@ -26,11 +26,18 @@ use.
 
 ## How work is done here
 
+- `main` is protected: never commit or push to it directly. Every change, docs included,
+  goes in a branch (`feat/...`, `fix/...`, `docs/...`) and a Pull Request to `main`. The
+  user reviews and merges (squash); never merge yourself. Afterwards: `git switch main`,
+  `git pull`, and delete the local branch (`git branch -D`, since squash merges are not
+  seen as merged; first check `git diff main <branch>` is empty).
 - One part at a time; the user tests it before the commit. Commit messages:
   `feat: ... (phase N, part M)` with a bulleted body.
 - After pushing, check CI (no `gh` here):
   `curl https://api.github.com/repos/electrolabopen/modbus-studio/actions/runs?head_sha=<sha>`
-  and `/actions/runs/<id>/jobs`.
+  and `/actions/runs/<id>/jobs`. Pull Requests are opened with
+  `POST https://api.github.com/repos/electrolabopen/modbus-studio/pulls`, authenticated with
+  the credential git uses for pushing (`git credential fill`), never printed or saved.
 - `electrolabopen` is a personal GitHub account, not an organization.
 
 ## Checks
