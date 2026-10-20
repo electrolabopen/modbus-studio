@@ -18,7 +18,9 @@ default and has an optional bearer token.
 
 ## 0.2.0
 
-Released on 2026-10-20: MQTT report by exception
+Released as [v0.2.0](https://github.com/electrolabopen/modbus-studio/releases/tag/v0.2.0)
+on 2026-10-20: on [PyPI](https://pypi.org/project/modbus-studio/0.2.0/) and as
+`ghcr.io/electrolabopen/modbus-studio:0.2.0` (amd64, arm64). MQTT report by exception
 ([#1](https://github.com/electrolabopen/modbus-studio/issues/1)), with a deadband per
 exporter or per value and an optional heartbeat. See the
 [CHANGELOG](../CHANGELOG.md) and `docs/mqtt.md`.
