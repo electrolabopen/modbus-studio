@@ -53,25 +53,32 @@ accepts `v*` tags.
 
 ## Releasing a version
 
-1. On `main`, set the version in
+`main` is protected: the release commit goes through a Pull Request like any other
+change.
+
+1. In a branch (`release/0.2.0`), set the version in
    [`backend/src/modbus_studio/__init__.py`](../backend/src/modbus_studio/__init__.py)
-   (the only place it is written; `pyproject.toml` reads it), e.g. `0.1.0`.
-2. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [0.1.0] - YYYY-MM-DD` and start a
-   new empty `## [Unreleased]` above it.
-3. Commit, push, and wait for CI to be green on that commit.
-4. Tag that commit and push the tag:
+   (the only place it is written; `pyproject.toml` reads it), e.g. `0.2.0`.
+2. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [0.2.0] - YYYY-MM-DD`, add a short
+   summary under it (the start of the release notes), start a new empty
+   `## [Unreleased]` above it, and update the compare links at the bottom.
+3. Open a Pull Request to `main`, wait for CI to be green and merge it (squash).
+4. Update `main`, check that its last commit is the release, wait for CI to be green on
+   that commit, then tag it and push the tag:
 
    ```bash
-   git tag -a v0.1.0 -m "modbus-studio 0.1.0"
-   git push origin v0.1.0
+   git switch main && git pull
+   git tag -a v0.2.0 -m "modbus-studio 0.2.0"
+   git push origin v0.2.0
    ```
 
 5. `release.yml` checks the tag matches the version and has a CHANGELOG section, builds
    and tests the package, then waits: approve the **pypi** deployment in the run's page
    (*Actions → Release → Review deployments*).
-6. After approval it publishes to PyPI, tags the image `0.1.0`, `0.1` and `latest`, and
+6. After approval it publishes to PyPI, tags the image `0.2.0`, `0.2` and `latest`, and
    creates the GitHub release with the CHANGELOG section and the files.
-7. Set the version on `main` to the next development one (e.g. `0.2.0.dev0`).
+7. In another branch and Pull Request, set the version to the next development one
+   (e.g. `0.3.0.dev0`).
 
 A PyPI version cannot be uploaded twice, even after deleting it. If something fails
 after the PyPI step, fix it and release the next patch version rather than reusing the

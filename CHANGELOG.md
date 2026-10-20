@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-20
+
+MQTT report by exception: the MQTT exporter can publish a value only when it changes,
+with a deadband per exporter or per value and an optional heartbeat, so a fast scan rate
+that catches short states no longer means a message per value and poll. Publishing every
+poll stays the default. Install it with `pip install modbus-studio==0.2.0` or run
+`ghcr.io/electrolabopen/modbus-studio:0.2.0` (amd64 and arm64).
+
 ### Added
 - MQTT report by exception ([#1](https://github.com/electrolabopen/modbus-studio/issues/1)):
   `publish_mode` `on_change` publishes a value only when it changes by more than a
@@ -201,5 +209,6 @@ with `pip install modbus-studio` or run `ghcr.io/electrolabopen/modbus-studio:0.
 - Optional bearer token for the API; the server binds to 127.0.0.1 by default.
 - `modbus-studio-sim`: simulator with time-varying registers, served over TCP and RTU over TCP.
 
-[Unreleased]: https://github.com/electrolabopen/modbus-studio/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/electrolabopen/modbus-studio/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/electrolabopen/modbus-studio/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/electrolabopen/modbus-studio/releases/tag/v0.1.0
