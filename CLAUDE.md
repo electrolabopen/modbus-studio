@@ -17,6 +17,13 @@ Prefer a separate compose project (`docker compose -p mstest ...`) for tests; st
 the user's stack is `docker compose down` **without** `-v`, and it must be started again
 afterwards (`docker compose --profile influxdb --profile mqtt up -d --build --wait`).
 
+## Tools
+
+Only run the formatters, linters and other tools configured in the project (the ones in
+"Checks" below, `package.json` scripts, `pyproject.toml`). Never run others, such as
+`npx prettier`, even on a single file: they rewrite files in a style the project does not
+use.
+
 ## How work is done here
 
 - One part at a time; the user tests it before the commit. Commit messages:

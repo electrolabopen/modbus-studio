@@ -34,7 +34,7 @@ network and open it from any browser.
 | Traffic monitor | Raw TX/RX frames with filters, pause, counters and CSV export |
 | Chart | Real-time chart of selected registers (uPlot), pause, zoom, CSV export |
 | InfluxDB | Export to InfluxDB 2.x, compose profile with Grafana and a dashboard for the simulator ([guide](docs/influxdb.md)) |
-| MQTT | Publish every value as JSON (value, unit, timestamp) on a configurable topic, QoS 0/1/2, retain, TLS; compose profile with Mosquitto ([guide](docs/mqtt.md)) |
+| MQTT | Publish every value as JSON (value, unit, timestamp) on a configurable topic, or only on change (deadband per exporter or per value, optional heartbeat), QoS 0/1/2, retain, TLS; compose profile with Mosquitto ([guide](docs/mqtt.md)) |
 | Exporter settings | InfluxDB and MQTT configured from the UI, with live status, counters and a connection test; tokens and passwords are typed, never shown |
 | API | REST API + WebSocket, the same API the UI uses; OpenAPI at `/docs` |
 | Security | Binds to 127.0.0.1 by default, optional API token |
@@ -279,7 +279,7 @@ For 64-bit values the same two operations apply to all four words.
 |---|---|
 | [`docs/rtu-linux.md`](docs/rtu-linux.md) | USB-RS485 adapters on Linux, udev, Docker `--device`, wiring; RTU without hardware (socat, com0com) |
 | [`docs/influxdb.md`](docs/influxdb.md) | InfluxDB exporter: what is written, settings, buffering, Grafana, credentials |
-| [`docs/mqtt.md`](docs/mqtt.md) | MQTT exporter: topics, JSON payload, QoS, TLS, Mosquitto |
+| [`docs/mqtt.md`](docs/mqtt.md) | MQTT exporter: topics, JSON payload, publishing on change, QoS, TLS, Mosquitto |
 | [`docs/examples/simulator-map.csv`](docs/examples/simulator-map.csv) | CSV register map of the bundled simulator |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phases, what each one has to pass, design notes |
 | [`docs/releasing.md`](docs/releasing.md) | Publishing the image and releases (maintainers) |
