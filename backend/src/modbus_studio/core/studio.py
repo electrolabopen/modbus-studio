@@ -323,6 +323,7 @@ class Studio:
     async def remove_poll(self, poll_id: str) -> None:
         self._task(poll_id)
         await self.polls.remove(poll_id)
+        self.mqtt.forget(poll_id)
         self._changed()
 
     @staticmethod
@@ -350,7 +351,9 @@ class Studio:
         changes = patch.model_dump(
             exclude_none=True, include={"dtype", "order", "scale", "unit", "alias"}
         )
-        if d.function.is_bit and set(changes) - {"alias"}:
+        if "deadband" in patch.model_fields_set:  # null: back to the exporter's
+            changes["deadband"] = patch.deadband
+        if d.function.is_bit and {k for k, v in changes.items() if v is not None} - {"alias"}:
             raise InvalidRequestError("coils and discrete inputs only take an alias")
         owner = self._cell_owners(d)[patch.start]
         if owner != patch.start:
@@ -424,6 +427,7 @@ class Studio:
                 or row.order != d.default_format.order
                 or row.scale != 1
                 or row.unit
+                or row.deadband is not None
             ):
                 errors.append(MapError(row.line, "coils and discrete inputs only take an alias"))
         if errors:
@@ -435,7 +439,12 @@ class Studio:
         else:
             formats = {
                 r.address: RegisterFormatModel(
-                    dtype=r.dtype, order=r.order, scale=r.scale, unit=r.unit, alias=r.alias
+                    dtype=r.dtype,
+                    order=r.order,
+                    scale=r.scale,
+                    unit=r.unit,
+                    alias=r.alias,
+                    deadband=r.deadband,
                 )
                 for r in rows
             }
@@ -664,7 +673,10 @@ class Studio:
 
     def _export(self, result: PollResult) -> None:
         """Hand a poll result to the exporters. Runs inside the poll loop: no I/O."""
-        if not (self.influx.active or self.mqtt.active) or result.values is None:
+        if not (self.influx.active or self.mqtt.active):
+            return
+        if result.values is None:
+            self.mqtt.forget(result.poll_id)
             return
         try:
             task = self.polls.get(result.poll_id)
@@ -672,6 +684,7 @@ class Studio:
         except KeyError:  # removed while the request was in flight
             return
         d = task.definition
+        cells = self.poll_data(task, result).cells
         samples = [
             Sample(
                 window=d.name or d.id,
@@ -682,10 +695,18 @@ class Studio:
                 unit=cell.unit,
                 value=cell.value,
                 timestamp=result.timestamp,
+                poll_id=d.id,
+                deadband=d.formats.get(cell.address, d.default_format).deadband,
             )
-            for cell in self.poll_data(task, result).cells
+            for cell in cells
             if cell.value is not None and cell.covered_by is None and cell.error is None
         ]
+        if failed := [
+            c.address
+            for c in cells
+            if c.covered_by is None and (c.value is None or c.error is not None)
+        ]:
+            self.mqtt.forget(d.id, failed)
         self.influx.offer(samples)
         self.mqtt.offer(samples)
 

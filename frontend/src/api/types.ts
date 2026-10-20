@@ -20,6 +20,8 @@ export interface RegisterFormat {
   scale: number
   unit: string
   alias: string
+  /** MQTT on change: this value's deadband; null or absent: the exporter's. */
+  deadband?: number | null
 }
 
 interface ConnectionBase {
@@ -196,6 +198,8 @@ export interface FormatPatch {
   scale?: number
   unit?: string
   alias?: string
+  /** Omitted: kept; null: back to the exporter's deadband. */
+  deadband?: number | null
   reset?: boolean
 }
 
@@ -276,6 +280,8 @@ export interface ExporterStatus {
   errors: number
   dropped: number
   pending: number
+  /** MQTT only, on change: values not published because they had not changed. */
+  unchanged: number
   /** MQTT only. */
   connected: boolean | null
 }
@@ -303,6 +309,8 @@ export interface InfluxDBConfigView extends InfluxDBSettings {
   token_set: boolean
 }
 
+export type MQTTPublishMode = 'every_poll' | 'on_change'
+
 export interface MQTTSettings {
   enabled: boolean
   host: string
@@ -313,6 +321,12 @@ export interface MQTTSettings {
   qos: 0 | 1 | 2
   retain: boolean
   aliased_only: boolean
+  /** every_poll: one message per value and poll; on_change: report by exception. */
+  publish_mode: MQTTPublishMode
+  /** on_change: smallest change published, in engineering units; 0: any change. */
+  deadband: number
+  /** on_change: republish an unchanged value after this many seconds; 0: never. */
+  heartbeat_s: number
   keepalive_s: number
   buffer_size: number
   tls: boolean

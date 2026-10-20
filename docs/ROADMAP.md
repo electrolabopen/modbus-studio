@@ -42,6 +42,8 @@ address,alias,type,byte_order,scale,unit
   later as an import option.
 - `type` is one of `int16 uint16 hex16 bin16 int32 uint32 float32 int64 uint64 float64`.
 - Empty `byte_order`, `scale` and `unit` fall back to `ABCD`, `1` and no unit.
+- An optional `deadband` column sets the value's MQTT deadband for publishing on change
+  (0.2.0, issue #1); empty: the exporter's.
 - Rows are validated (overlapping multi-register values, unknown types). Problems are
   reported per line and nothing is applied until all rows are valid.
 

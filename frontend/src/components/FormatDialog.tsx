@@ -36,12 +36,19 @@ export function FormatDialog({ view, start, end, onClose }: Props) {
   const [order, setOrder] = useState<ByteOrder>(initial.order)
   const [scale, setScale] = useState(String(initial.scale))
   const [unit, setUnit] = useState(initial.unit)
+  const initialDeadband = initial.deadband == null ? '' : String(initial.deadband)
+  const [deadband, setDeadband] = useState(initialDeadband)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const width = WIDTH[dtype] ?? 1
   const parsedScale = Number(scale)
   const scaleValid = scale.trim() !== '' && Number.isFinite(parsedScale) && parsedScale !== 0
+  const parsedDeadband = deadband.trim() === '' ? null : Number(deadband)
+  const deadbandValid =
+    parsedDeadband === null || (Number.isFinite(parsedDeadband) && parsedDeadband >= 0)
+  // Sent only when edited, so a range keeps each cell's own deadband otherwise.
+  const deadbandPatch = deadband.trim() === initialDeadband ? {} : { deadband: parsedDeadband }
 
   const send = async (patch: FormatPatch) => {
     setBusy(true)
@@ -63,10 +70,25 @@ export function FormatDialog({ view, start, end, onClose }: Props) {
     <Modal
       title="Cell format"
       submitLabel="Apply"
-      busy={busy || !scaleValid}
-      error={error ?? (scaleValid ? null : 'Scale must be a non-zero number')}
+      busy={busy || !scaleValid || !deadbandValid}
+      error={
+        error ??
+        (!scaleValid
+          ? 'Scale must be a non-zero number'
+          : !deadbandValid
+            ? 'Deadband must be a number, 0 or more, or empty'
+            : null)
+      }
       onSubmit={() =>
-        send({ start, end, dtype, order, scale: parsedScale, unit: unit.trim() })
+        send({
+          start,
+          end,
+          dtype,
+          order,
+          scale: parsedScale,
+          unit: unit.trim(),
+          ...deadbandPatch,
+        })
       }
       onClose={onClose}
       secondary={{
@@ -110,6 +132,20 @@ export function FormatDialog({ view, start, end, onClose }: Props) {
         </Field>
       </div>
       <p className="hint">Displayed value = raw value × scale. Writes divide by the scale.</p>
+      <div className="field-row">
+        <Field label="MQTT deadband">
+          <input
+            inputMode="decimal"
+            value={deadband}
+            placeholder="empty: the exporter's"
+            onChange={(e) => setDeadband(e.target.value)}
+          />
+        </Field>
+      </div>
+      <p className="hint">
+        When MQTT publishes on change: the smallest change of this value that is published, in
+        engineering units (0: any change).
+      </p>
     </Modal>
   )
 }

@@ -46,7 +46,14 @@ def test_alias_is_per_cell(client, sim_conn):
     create_poll(client, id="a", address=0, quantity=3)
     assert patch(client, "a", start=2, end=2, alias="temperature").status_code == 200
     assert formats(client, "a") == {
-        "2": {"dtype": "int16", "order": "ABCD", "scale": 1.0, "unit": "", "alias": "temperature"}
+        "2": {
+            "dtype": "int16",
+            "order": "ABCD",
+            "scale": 1.0,
+            "unit": "",
+            "alias": "temperature",
+            "deadband": None,
+        }
     }
     data = wait_for(lambda: client.get("/api/polls/a/data").json())
     assert data["cells"][2]["alias"] == "temperature"
@@ -96,3 +103,24 @@ def test_format_change_does_not_restart_polling(client, sim_conn):
     wait_for(lambda: client.get("/api/polls/k").json()["stats"]["polls"] >= 3)
     patch(client, "k", start=0, end=0, dtype="uint16")
     assert client.get("/api/polls/k").json()["stats"]["polls"] >= 3
+
+
+def test_deadband_per_value(client, sim_conn):
+    create_poll(client, id="d", address=0, quantity=4)
+    assert patch(client, "d", start=0, end=3, deadband=0.5).status_code == 200
+    assert patch(client, "d", start=2, end=2, unit="°C").status_code == 200
+    f = formats(client, "d")
+    assert [f[a]["deadband"] for a in "0123"] == [0.5] * 4
+    assert f["2"]["unit"] == "°C"  # left out: kept
+    # null: back to the exporter's deadband
+    assert patch(client, "d", start=0, end=1, deadband=None).status_code == 200
+    f = formats(client, "d")
+    assert sorted(f) == ["2", "3"] and f["3"]["deadband"] == 0.5
+    assert patch(client, "d", start=0, end=0, deadband=-1).status_code == 422
+
+
+def test_bit_windows_take_no_deadband(client, sim_conn):
+    create_poll(client, id="bd", function=1, address=0, quantity=8)
+    res = patch(client, "bd", start=0, end=0, deadband=1)
+    assert res.status_code == 400 and "only take an alias" in res.json()["detail"]
+    assert patch(client, "bd", start=0, end=0, alias="door", deadband=None).status_code == 200

@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+- MQTT report by exception ([#1](https://github.com/electrolabopen/modbus-studio/issues/1)):
+  `publish_mode` `on_change` publishes a value only when it changes by more than a
+  deadband, when it is read again after a failed read, and at an optional heartbeat
+  (`heartbeat_s`). Every value is published once at start-up and after a change of
+  settings. `every_poll`, the previous behaviour, stays the default. The status has a new
+  counter, `unchanged`. See `docs/mqtt.md`.
+- An absolute deadband per exporter (`deadband`) and per value: **MQTT deadband** in the
+  cell format dialog, `deadband` in `PATCH /api/polls/{id}/formats` (`null`: the
+  exporter's) and an optional `deadband` column in CSV register maps.
+- Exporters dialog, MQTT tab: **Publish** every poll or on change, with deadband and
+  heartbeat.
+
 ### Fixed
 - The image's `org.opencontainers.image.version` label is the version without the
   "v" of the git tag (`0.2.0`, not `v0.2.0`); images from `main` say `edge`.

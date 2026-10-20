@@ -1,8 +1,9 @@
 # Publishing over MQTT
 
-modbus-studio can publish every polled value to an MQTT broker, one JSON message per
-value, for SCADA, Node-RED, Home Assistant or any other subscriber. The exporter runs
-inside the server, next to the polling windows.
+modbus-studio can publish polled values to an MQTT broker, one JSON message per value,
+for SCADA, Node-RED, Home Assistant or any other subscriber: every value of every poll,
+or only the values that change ([report by exception](#publishing-on-change-report-by-exception)).
+The exporter runs inside the server, next to the polling windows.
 
 ## Try it with docker compose
 
@@ -54,7 +55,8 @@ on 127.0.0.1. Before opening its port to a network, give it a TLS listener (see
 
 ## What is published
 
-One message per value and poll.
+One message per value and poll, or, with `publish_mode` `on_change`, only when the value
+changes (see [below](#publishing-on-change-report-by-exception)).
 
 **Topic**: the `topic` template, by default `modbus-studio/{connection}/{device}/{alias}`.
 
@@ -114,6 +116,9 @@ curl -X PUT http://127.0.0.1:8000/api/exporters/mqtt \
 | `qos` | `0` | `0`, `1` or `2` |
 | `retain` | `false` | the broker keeps the last value of each topic for new subscribers |
 | `aliased_only` | `false` | publish only registers that have an alias |
+| `publish_mode` | `every_poll` | `every_poll`: every value of every poll; `on_change`: report by exception, see below |
+| `deadband` | `0` | `on_change`: smallest change published, in engineering units; `0`: any change |
+| `heartbeat_s` | `0` | `on_change`: publish an unchanged value again after this many seconds; `0`: never |
 | `keepalive_s` | `60` | |
 | `buffer_size` | `10000` | messages kept while the broker is unreachable |
 | `tls` | `false` | connect with TLS |
@@ -138,6 +143,88 @@ the broker once, waits for its answer and disconnects. It uses its own client ID
 (the exporter's plus `-test`), so the running exporter stays connected. A missing
 password means the saved one.
 
+## Publishing on change (report by exception)
+
+Catching short states needs a fast scan rate: a door bit that is set for 100 ms needs
+polling every 50 ms. Published every poll, that is 20 messages a second per value, nearly
+all of them repeating the previous one. With `publish_mode` `on_change` (in the dialog,
+**Publish: On change**) the exporter keeps the last value it published for each value of
+each window and publishes a new message only when:
+
+- **the value changed** by more than the deadband since the last message (not since the
+  last poll, so a slow drift is published once it adds up). Coils, discrete inputs and
+  other booleans are published whenever they flip. With the deadband at `0` any change is
+  published;
+- **it is the first value**: after the server starts, after the window is added, and
+  after any change of the exporter's settings, every value is published once, so
+  subscribers get the current state;
+- **the previous read failed**: after a timeout, an exception or a lost connection (for
+  the whole window), or a value that could not be decoded (for that value), the next
+  valid value is published even if it equals the last message;
+- **its topic or unit changed**, e.g. after renaming its alias: the new topic gets the
+  value at once;
+- **the heartbeat is due**: with `heartbeat_s` above 0, a value that has not changed is
+  published again that many seconds after its last message, so subscribers can tell the
+  device is still being read.
+
+The heartbeat comes from the polls: it is only sent with a valid read. While a device does
+not answer, nothing is published for it, heartbeat included, and a subscriber that misses
+the heartbeat knows the value is stale.
+
+The payload is the same as in `every_poll`, and its `timestamp` is when the poll that saw
+the change finished: the time of a change is known to within one scan period. Each message
+is then an event (what changed and when); a scan faster than the shortest state you need
+to see is still needed, but it no longer costs a message per poll.
+
+With the default every-poll mode, the example of the door bit gives 20 messages a second;
+on change, it gives one message when the door opens and one when it closes.
+
+### Deadband per value
+
+The exporter's `deadband` applies to every value. A value can have its own: in the cell
+format dialog (double-click the address, or **Format…**), **MQTT deadband** sets it for
+that value or for the selected range; leave it empty to use the exporter's. A value's
+own deadband replaces the exporter's, also when it is smaller (`0` publishes every change
+of that value even if the exporter's deadband is larger).
+
+Through the API, it is the `deadband` of the cell format:
+
+```bash
+# 0.5 for the values at addresses 10 to 17
+curl -X PATCH http://127.0.0.1:8000/api/polls/<window id>/formats \
+  -H 'Content-Type: application/json' -d '{"start": 10, "end": 17, "deadband": 0.5}'
+# back to the exporter's deadband
+curl -X PATCH http://127.0.0.1:8000/api/polls/<window id>/formats \
+  -H 'Content-Type: application/json' -d '{"start": 10, "end": 17, "deadband": null}'
+```
+
+and in a CSV register map, the optional `deadband` column (empty: the exporter's):
+
+```csv
+address,alias,type,byte_order,scale,unit,deadband
+2,temperature,int16,ABCD,0.1,°C,0.5
+10,flow,float32,CDAB,1,m3/h,
+```
+
+Coils and discrete inputs take no deadband: they are published when they flip. The
+deadbands are saved with the windows in the workspace.
+
+### Example
+
+```bash
+curl -X PUT http://127.0.0.1:8000/api/exporters/mqtt \
+  -H 'Content-Type: application/json' \
+  -d '{"enabled": true, "host": "mosquitto", "username": "modbus-studio",
+       "publish_mode": "on_change", "deadband": 0.5, "heartbeat_s": 60}'
+```
+
+With the simulator, the counter is published every second (it changes every second),
+the temperature only when it moves by more than 0.5 °C, and the constants once a
+minute, from the heartbeat.
+
+With `retain`, the broker keeps the last message of each topic, so a subscriber that
+connects between two changes still gets the current value at once.
+
 ## Status, errors and buffering
 
 `GET /api/exporters/mqtt` also returns the status:
@@ -152,6 +239,7 @@ password means the saved one.
 | `errors` | failed connection attempts and failed publishes |
 | `dropped` | messages discarded: the buffer was full, or QoS 0 messages lost with a connection |
 | `pending` | messages waiting to be published |
+| `unchanged` | `on_change`: values not published because they had not changed |
 
 **The broker never slows down polling.** Polling hands the values to a buffer and goes
 on; the MQTT client runs in a thread of its own and reconnects by itself, waiting 1 s,

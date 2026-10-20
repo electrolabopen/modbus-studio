@@ -7,6 +7,7 @@ import type {
   InfluxDBConfigView,
   InfluxDBSettings,
   MQTTConfigView,
+  MQTTPublishMode,
   MQTTSettings,
 } from '../api/types'
 import { dotClass, STATE_LABELS, type ExporterKind } from '../exporters'
@@ -56,6 +57,9 @@ function mqttSettings(c: MQTTConfigView): MQTTSettings {
     qos: c.qos,
     retain: c.retain,
     aliased_only: c.aliased_only,
+    publish_mode: c.publish_mode,
+    deadband: c.deadband,
+    heartbeat_s: c.heartbeat_s,
     keepalive_s: c.keepalive_s,
     buffer_size: c.buffer_size,
     tls: c.tls,
@@ -275,6 +279,7 @@ function StatusBox({ kind, status }: { kind: ExporterKind; status: ExporterStatu
         <Counter label="errors" value={status.errors} warn={status.errors > 0} />
         <Counter label="dropped" value={status.dropped} warn={status.dropped > 0} />
         <Counter label="pending" value={status.pending} />
+        {kind === 'mqtt' && <Counter label="unchanged" value={status.unchanged} />}
       </dl>
       {status.last_error && (
         <p className={status.state === 'error' ? 'conn-error small' : 'muted small'}>
@@ -490,7 +495,7 @@ function MqttForm({
   return (
     <>
       <Check checked={form.enabled} onChange={(v) => set('enabled', v)}>
-        Publish every polled value to an MQTT broker
+        Publish polled values to an MQTT broker
       </Check>
       <div className="field-row">
         <Field label="Broker host">
@@ -542,6 +547,47 @@ function MqttForm({
         Placeholders: {TOPIC_FIELDS.map((f) => `{${f}}`).join(' ')}. For example:{' '}
         <code>{example}</code>
       </p>
+      <div className="field-row">
+        <Field label="Publish">
+          <select
+            value={form.publish_mode}
+            onChange={(e) => set('publish_mode', e.target.value as MQTTPublishMode)}
+          >
+            <option value="every_poll">Every poll</option>
+            <option value="on_change">On change (report by exception)</option>
+          </select>
+        </Field>
+      </div>
+      {form.publish_mode === 'on_change' && (
+        <div className="indent">
+          <div className="field-row">
+            <Field label="Deadband">
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={form.deadband}
+                onChange={(e) => set('deadband', e.target.valueAsNumber || 0)}
+              />
+            </Field>
+            <Field label="Heartbeat (s)">
+              <input
+                type="number"
+                min={0}
+                max={86400}
+                value={form.heartbeat_s}
+                onChange={(e) => set('heartbeat_s', e.target.valueAsNumber || 0)}
+              />
+            </Field>
+          </div>
+          <p className="hint">
+            A value is published when it changes by more than the deadband (in engineering
+            units; 0: any change), when it is read again after a failed read, and every
+            heartbeat even if unchanged (0: never). A register's own deadband, set in its cell
+            format, replaces this one.
+          </p>
+        </div>
+      )}
       <div className="field-row">
         <Field label="QoS">
           <select
