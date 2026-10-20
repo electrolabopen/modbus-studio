@@ -107,6 +107,8 @@ class FormatPatch(BaseModel):
     scale: float | None = None
     unit: str | None = Field(default=None, max_length=32)
     alias: str | None = Field(default=None, max_length=64)
+    # MQTT on_change deadband. Left out: kept; null: back to the exporter's.
+    deadband: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     reset: bool = False
 
     @model_validator(mode="after")

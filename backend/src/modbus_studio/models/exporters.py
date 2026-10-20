@@ -84,6 +84,8 @@ class ExporterStatus(BaseModel):
     # Points discarded: buffer full, or rejected by the server as malformed.
     dropped: int = 0
     pending: int = 0
+    # MQTT only, on_change: values not published because they had not changed.
+    unchanged: int = 0
     # MQTT only: whether the client is connected to the broker.
     connected: bool | None = None
 
@@ -118,6 +120,14 @@ class MQTTConfig(BaseModel):
     retain: bool = False
     # Only publish registers that have an alias.
     aliased_only: bool = False
+    # every_poll: one message per value and poll. on_change: only when a value changed
+    # by more than the deadband, after a failed read, or when the heartbeat is due.
+    publish_mode: Literal["every_poll", "on_change"] = "every_poll"
+    # on_change: smallest change, in engineering units, that is published; 0: any
+    # change. A register's own deadband (in its format) replaces it.
+    deadband: float = Field(default=0.0, ge=0, allow_inf_nan=False)
+    # on_change: publish an unchanged value again after this many seconds; 0: never.
+    heartbeat_s: int = Field(default=0, ge=0, le=86_400)
     keepalive_s: int = Field(default=60, ge=5, le=3600)
     # Messages kept while the broker is unreachable; the oldest are dropped beyond it.
     buffer_size: int = Field(default=10_000, ge=100, le=1_000_000)
@@ -175,6 +185,9 @@ class MQTTConfigView(BaseModel):
     qos: int
     retain: bool
     aliased_only: bool
+    publish_mode: str
+    deadband: float
+    heartbeat_s: int
     keepalive_s: int
     buffer_size: int
     tls: bool

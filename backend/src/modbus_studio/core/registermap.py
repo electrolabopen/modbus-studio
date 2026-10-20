@@ -9,6 +9,8 @@
   only required column. Column order does not matter; headers are case-insensitive.
 - Empty ``type``, ``byte_order``, ``scale`` and ``unit`` fall back to ``int16``,
   ``ABCD``, ``1`` and no unit.
+- The optional ``deadband`` column is the value's MQTT deadband (in engineering
+  units) for publishing on change; empty: the exporter's.
 - The delimiter may be ``,`` or ``;``. With ``;`` (what spreadsheets in many locales
   export) a decimal comma in ``scale`` is accepted too. Lines starting with ``#``
   are comments.
@@ -26,7 +28,7 @@ from dataclasses import dataclass
 
 from .codec import ByteOrder, DataType, register_count
 
-COLUMNS = ("address", "alias", "type", "byte_order", "scale", "unit")
+COLUMNS = ("address", "alias", "type", "byte_order", "scale", "unit", "deadband")
 MAX_ALIAS = 64
 MAX_UNIT = 32
 
@@ -40,6 +42,7 @@ class MapRow:
     order: ByteOrder
     scale: float
     unit: str
+    deadband: float | None = None
 
     @property
     def last_address(self) -> int:
@@ -140,6 +143,14 @@ def parse_register_map(text: str) -> list[MapRow]:
                     raise ValueError
             except ValueError:
                 row_errors.append(f"scale {cell['scale']!r} must be a non-zero number")
+        deadband: float | None = None
+        if cell.get("deadband"):
+            try:
+                deadband = _number(cell["deadband"], decimal_comma=delimiter == ";")
+                if not math.isfinite(deadband) or deadband < 0:
+                    raise ValueError
+            except ValueError:
+                row_errors.append(f"deadband {cell['deadband']!r} must be a number, 0 or more")
         alias, unit = cell.get("alias", ""), cell.get("unit", "")
         if len(alias) > MAX_ALIAS:
             row_errors.append(f"alias longer than {MAX_ALIAS} characters")
@@ -148,7 +159,7 @@ def parse_register_map(text: str) -> list[MapRow]:
         if row_errors:
             errors.extend(MapError(line, message) for message in row_errors)
         else:
-            parsed.append(MapRow(line, address, alias, dtype, order, scale, unit))
+            parsed.append(MapRow(line, address, alias, dtype, order, scale, unit, deadband))
 
     if not parsed and not errors:
         errors.append(MapError(header_line, "no rows after the header"))

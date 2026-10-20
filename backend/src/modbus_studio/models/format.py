@@ -15,6 +15,9 @@ class RegisterFormatModel(BaseModel):
     scale: float = 1.0
     unit: str = Field(default="", max_length=32)
     alias: str = Field(default="", max_length=64)
+    # MQTT on_change: the deadband of this value, replacing the exporter's. None: the
+    # exporter's.
+    deadband: float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
     @field_validator("scale")
     @classmethod

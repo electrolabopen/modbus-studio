@@ -113,6 +113,7 @@ def test_a_window_too_small_can_grow_to_fit_the_map(client, sim_conn):
         "scale": 1.0,
         "unit": "",
         "alias": "uint32 constant",
+        "deadband": None,
     }
     by = wait_for(lambda: (c := cells(client, "small")) and len(c) >= 27 and c)
     assert by[0]["alias"] == "counter"
@@ -145,6 +146,16 @@ def test_bit_windows_take_aliases_only(client, sim_conn):
     assert client.get("/api/polls/c").json()["definition"]["formats"]["3"]["alias"] == "pump"
     res = import_csv(client, "c", "address,alias,unit\n3,pump,bar\n")
     assert res.status_code == 400 and "only take an alias" in res.json()["errors"][0]["message"]
+    res = import_csv(client, "c", "address,alias,deadband\n3,pump,1\n")
+    assert res.status_code == 400 and "only take an alias" in res.json()["errors"][0]["message"]
+
+
+def test_csv_deadband_becomes_the_values_deadband(client, sim_conn):
+    create_poll(client, id="db", address=0, quantity=3)
+    text = "address,alias,scale,deadband\n0,counter,1,\n2,temperature,0.1,0.5\n"
+    assert import_csv(client, "db", text).status_code == 200
+    f = client.get("/api/polls/db").json()["definition"]["formats"]
+    assert (f["0"]["deadband"], f["2"]["deadband"]) == (None, 0.5)
 
 
 def test_workspace_round_trip(sim):

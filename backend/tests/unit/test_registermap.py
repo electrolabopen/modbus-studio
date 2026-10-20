@@ -59,3 +59,11 @@ def test_header_problems():
     assert errors("# only a comment\n") == [(1, "the file is empty")]
     assert errors("address\n") == [(1, "no rows after the header")]
     assert errors("address,alias\n1,a,b\n") == [(2, "3 fields, the header has 2")]
+
+
+def test_deadband_column():
+    text = "address;type;scale;deadband\n2;int16;0,1;0,5\n3;int16;1;\n4;int16;1;0\n"
+    assert [r.deadband for r in parse_register_map(text)] == [0.5, None, 0.0]
+    bad = "address,deadband\n1,-1\n2,x\n3,inf\n"
+    assert [line for line, _ in errors(bad)] == [2, 3, 4]
+    assert "deadband '-1' must be a number, 0 or more" in errors(bad)[0][1]

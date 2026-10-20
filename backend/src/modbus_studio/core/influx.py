@@ -42,6 +42,9 @@ class Sample:
     unit: str
     value: float | int | bool
     timestamp: float  # seconds since the epoch
+    poll_id: str = ""
+    # MQTT on_change: the register's own deadband, if it has one.
+    deadband: float | None = None
 
 
 def _escape(text: str, specials: str) -> str:

@@ -1,4 +1,9 @@
-"""MQTT exporter: every polled value as a JSON message on its own topic.
+"""MQTT exporter: polled values as JSON messages, one topic per value.
+
+Every value of every poll is published, or, in ``on_change`` mode (report by
+exception), only the values that changed by more than their deadband since they were
+last published, the first value after a failed read, and unchanged values when their
+heartbeat is due.
 
 Polling never waits for the broker. ``offer()`` only formats the messages and
 appends them to a bounded buffer; a background task hands them to the MQTT client
@@ -83,6 +88,18 @@ def payload_for(sample: Sample) -> bytes | None:
         "window": sample.window,
     }
     return json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode()
+
+
+def changed(old: float | int | bool, new: float | int | bool, deadband: float) -> bool:
+    """Whether ``new`` differs from the last published ``old`` by more than
+    ``deadband``. Booleans change when they flip, whatever the deadband."""
+    if type(old) is not type(new):
+        return True
+    if isinstance(new, bool) or deadband == 0:
+        return new != old
+    diff = abs(new - old)
+    # Scaling leaves noise: 21.6 - 21.5 is 0.10000000000000142, not above 0.1.
+    return diff > deadband and not math.isclose(diff, deadband, rel_tol=1e-9)
 
 
 def describe_error(exc: BaseException, host: str, port: int) -> str:
@@ -206,6 +223,9 @@ class MqttExporter:
         self._wake = asyncio.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._in_client = 0
+        # on_change: per value (window id, address), what was last queued for it:
+        # value, poll timestamp, topic and unit.
+        self._last: dict[tuple[str, int], tuple[float | int | bool, float, str, str]] = {}
         # Whether the broker answered the current connection attempt (CONNACK).
         self._answered = False
         # Callbacks of a client that has been replaced are ignored.
@@ -220,11 +240,13 @@ class MqttExporter:
 
     def configure(self, config: MQTTConfig) -> None:
         """Apply new settings and reconnect with them. Messages not yet sent are kept
-        unless the broker or the topic changed."""
+        unless the broker or the topic changed. In on_change mode every value is
+        published once more after a change of settings."""
         old = self.config
         if (config.host, config.port, config.topic) != (old.host, old.port, old.topic):
             self._buffer.clear()
         self.config = config
+        self._last.clear()
         self._buffer = deque(self._buffer, maxlen=config.buffer_size)
         self._stop_client()
         self.status = self.status.model_copy(
@@ -318,18 +340,55 @@ class MqttExporter:
         """Queue samples for publishing. Never blocks and never raises."""
         if not self.active:
             return
-        topic = self.config.topic
+        cfg = self.config
+        on_change = cfg.publish_mode == "on_change"
         for sample in samples:
-            if self.config.aliased_only and not sample.alias:
+            if cfg.aliased_only and not sample.alias:
                 continue
+            key = (sample.poll_id, sample.address)
             payload = payload_for(sample)
             if payload is None:
+                self._last.pop(key, None)  # unpublishable: like a failed read
                 continue
+            topic = topic_for(cfg.topic, sample)
+            if on_change:
+                if not self._due(key, sample, topic):
+                    self.status.unchanged += 1
+                    continue
+                self._last[key] = (sample.value, sample.timestamp, topic, sample.unit)
             if len(self._buffer) == self._buffer.maxlen:
                 self.status.dropped += 1
-            self._buffer.append((topic_for(topic, sample), payload))
+            self._buffer.append((topic, payload))
         self.status.pending = len(self._buffer)
         self._wake.set()
+
+    def _due(self, key: tuple[str, int], sample: Sample, topic: str) -> bool:
+        """on_change: whether ``sample`` is to be published."""
+        last = self._last.get(key)
+        if last is None:
+            return True  # the first value, or the first after a failed read
+        value, stamp, last_topic, unit = last
+        if (topic, sample.unit) != (last_topic, unit):
+            return True  # renamed: the new topic gets the value at once
+        cfg = self.config
+        deadband = cfg.deadband if sample.deadband is None else sample.deadband
+        if changed(value, sample.value, deadband):
+            return True
+        if cfg.heartbeat_s:
+            elapsed = sample.timestamp - stamp
+            # A clock set back counts as due rather than silencing the heartbeat.
+            return not 0 <= elapsed < cfg.heartbeat_s
+        return False
+
+    def forget(self, poll_id: str, addresses: Iterable[int] | None = None) -> None:
+        """A read failed (the whole window, or the values at ``addresses``): in
+        on_change mode, their next valid value is published even if it is the same."""
+        if addresses is None:
+            for key in [k for k in self._last if k[0] == poll_id]:
+                del self._last[key]
+        else:
+            for address in addresses:
+                self._last.pop((poll_id, address), None)
 
     # -- data out ----------------------------------------------------------
 

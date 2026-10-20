@@ -4,6 +4,8 @@ import asyncio
 import json
 import socket
 
+from modbus_studio.core.connection import Connection
+from modbus_studio.core.poller import ErrorKind, PollResult
 from modbus_studio.core.studio import Studio
 from modbus_studio.models import PollDefinition, TcpConnection
 from modbus_studio.models.exporters import MQTTConfig
@@ -189,3 +191,101 @@ async def test_a_missing_tls_file_is_named():
         assert "ca_file '/nowhere/ca.pem' not found" in status.last_error
     finally:
         await studio.close()
+
+
+async def test_issue_1_on_change_publishes_both_edges_of_a_100_ms_pulse(simulator, tcp: Connection):
+    """Issue #1: a door bit high for 100 ms, polled every 50 ms, gives exactly two
+    messages, the rising and the falling edge, after the state at start-up."""
+    broker = await FakeBroker().start()
+    studio = Studio()
+    config = MQTTConfig(enabled=True, host="127.0.0.1", port=broker.port, publish_mode="on_change")
+    door = PollDefinition(
+        id="door", name="Door", connection_id="sim", function=1, address=0, quantity=1,
+        scan_rate_ms=50, formats={0: RegisterFormatModel(alias="door")},
+    )  # fmt: skip
+    try:
+        await tcp.write_coil(1, 0, False)  # tcp: the machine, on a connection of its own
+        studio.add_connection(
+            TcpConnection(id="sim", name="Sim", host="127.0.0.1", port=simulator.tcp)
+        )
+        studio.set_mqtt(config)
+        studio.add_poll(door)
+        await broker.wait_for(1)  # the state at start-up
+        polls = studio.polls.get("door").stats
+
+        await asyncio.sleep(0.5)  # the door stays closed
+        before = polls.valid
+        await tcp.write_coil(1, 0, True)
+        await asyncio.sleep(0.1)
+        await tcp.write_coil(1, 0, False)
+        await asyncio.sleep(0.5)
+        assert polls.valid - before >= 10  # still polling every ~50 ms
+        await until(lambda: studio.mqtt.status.pending == 0)
+        unchanged = studio.mqtt.status.unchanged
+    finally:
+        await studio.close()
+        await broker.stop()
+
+    values = [json.loads(m.payload)["value"] for m in broker.messages]
+    assert values == [False, True, False]
+    assert {m.topic for m in broker.messages} == {"modbus-studio/Sim/1/door"}
+    assert unchanged >= 15
+
+
+async def test_on_change_republishes_after_failed_reads_and_per_register_deadbands():
+    broker = await FakeBroker().start()
+    studio = Studio()
+    config = MQTTConfig(
+        enabled=True, host="127.0.0.1", port=broker.port, publish_mode="on_change",
+        deadband=5,
+    )  # fmt: skip
+    # Never polled (nothing listens on its port): results are handed in by the test.
+    studio.add_connection(TcpConnection(id="sim", name="Sim", host="127.0.0.1", port=free_port()))
+    studio.add_poll(
+        window(
+            enabled=False,
+            quantity=4,
+            formats={
+                0: RegisterFormatModel(alias="a"),
+                1: RegisterFormatModel(alias="b", deadband=0),
+                2: RegisterFormatModel(alias="c", dtype="float32"),
+            },
+        )
+    )
+    seq = 0
+
+    def poll(values: list[int] | None) -> None:
+        nonlocal seq
+        seq += 1
+        studio._export(
+            PollResult(
+                poll_id="w", seq=seq, timestamp=1000.0 + seq, duration_ms=1.0, values=values,
+                error_kind=ErrorKind.TIMEOUT if values is None else None,
+            )
+        )  # fmt: skip
+
+    def sent() -> list[tuple[str, object]]:
+        return [
+            (m.topic.rsplit("/", 1)[1], json.loads(m.payload)["value"]) for m in broker.messages
+        ]
+
+    try:
+        studio.set_mqtt(config)
+        await until(lambda: studio.mqtt.status.connected)
+        poll([100, 100, 0, 0])
+        poll([103, 101, 0, 0])  # a: within the exporter's deadband; b: its own is 0
+        poll(None)  # timeout
+        poll([103, 101, 0, 0])  # the same values again, but after a failed read
+        poll([103, 101, 0x7FC0, 0])  # c: NaN, which JSON cannot carry
+        poll([103, 101, 0, 0])
+        await broker.wait_for(8)
+    finally:
+        await studio.close()
+        await broker.stop()
+
+    assert sent() == [
+        ("a", 100), ("b", 100), ("c", 0.0),
+        ("b", 101),
+        ("a", 103), ("b", 101), ("c", 0.0),
+        ("c", 0.0),
+    ]  # fmt: skip
