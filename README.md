@@ -14,7 +14,7 @@ network and open it from any browser.
 
 ![modbus-studio in use: a polling window, the real-time chart, the traffic monitor and the exporters](docs/screenshots/demo.gif)
 
-> **Status: pre-alpha, version 0.1.0.** Everything under [Working now](#working-now) is
+> **Status: pre-alpha, version 0.2.0.** Everything under [Working now](#working-now) is
 > done and tested; what is left is [in development](#in-development). See the
 > [roadmap](docs/ROADMAP.md) and the [changelog](CHANGELOG.md).
 
@@ -45,8 +45,8 @@ network and open it from any browser.
 
 | Feature | Where |
 |---|---|
-| RTU with a physical USB-RS485 adapter: tested only over virtual ports so far | 0.2.0 (phase 6, part 3) |
-| A physical Raspberry Pi 4/5: the arm64 image is tested on GitHub's arm64 runners and under QEMU so far | 0.2.0 |
+| RTU with a physical USB-RS485 adapter: tested only over virtual ports so far | 0.3.0 (phase 6, part 3) |
+| A physical Raspberry Pi 4/5: the arm64 image is tested on GitHub's arm64 runners and under QEMU so far | 0.3.0 |
 
 See the [roadmap](docs/ROADMAP.md) for the phases and what each one has to pass.
 

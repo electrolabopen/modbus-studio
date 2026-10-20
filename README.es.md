@@ -14,7 +14,7 @@ gateway o una Raspberry Pi en la red de planta y abrirlo desde cualquier navegad
 
 ![modbus-studio en uso: una ventana de sondeo, la gráfica en tiempo real, el monitor de tráfico y los exportadores](docs/screenshots/demo.gif)
 
-> **Estado: pre-alfa, versión 0.1.0.** Todo lo que aparece en [Funciona hoy](#funciona-hoy)
+> **Estado: pre-alfa, versión 0.2.0.** Todo lo que aparece en [Funciona hoy](#funciona-hoy)
 > está terminado y probado; lo que falta está [en desarrollo](#en-desarrollo). Ver la
 > [hoja de ruta](docs/ROADMAP.md) y el [registro de cambios](CHANGELOG.md) (en inglés).
 
@@ -48,8 +48,8 @@ en español.
 
 | Funcionalidad | Dónde |
 |---|---|
-| RTU con un adaptador USB-RS485 físico: por ahora solo probado con puertos virtuales | 0.2.0 (fase 6, parte 3) |
-| Una Raspberry Pi 4/5 física: por ahora la imagen arm64 se prueba en los runners arm64 de GitHub y bajo QEMU | 0.2.0 |
+| RTU con un adaptador USB-RS485 físico: por ahora solo probado con puertos virtuales | 0.3.0 (fase 6, parte 3) |
+| Una Raspberry Pi 4/5 física: por ahora la imagen arm64 se prueba en los runners arm64 de GitHub y bajo QEMU | 0.3.0 |
 
 La [hoja de ruta](docs/ROADMAP.md) detalla las fases y lo que cada una debe cumplir.
 
