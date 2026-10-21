@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConnectionView } from '../api/types'
 import { useStudio } from '../store'
@@ -57,6 +57,11 @@ describe('Sidebar', () => {
     expect(url).toBe('/api/connections/c1')
     expect(init.method).toBe('PUT')
     expect(JSON.parse(String(init.body))).toMatchObject({ host: 'modbus-studio-sim', read_only: true })
-    expect(screen.getByRole('button', { name: 'Read-only Plant' })).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Read-only Plant' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      ),
+    )
   })
 })

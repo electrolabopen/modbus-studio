@@ -69,7 +69,7 @@ describe('workspace import', () => {
     expect(calls).toEqual([
       { url: '/api/workspace?mode=merge', method: 'POST', body: workspace },
     ])
-    expect(onClose).toHaveBeenCalled()
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
 
   it('rejects files that are not workspaces', async () => {
@@ -84,7 +84,7 @@ describe('workspace import', () => {
     render(<ImportWorkspaceDialog file={jsonFile(JSON.stringify(workspace))} onClose={() => {}} />)
     await screen.findByText(/1 connection/)
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Import' })))
-    expect(screen.getByRole('alert')).toHaveTextContent('already in use: sim')
+    expect(await screen.findByRole('alert')).toHaveTextContent('already in use: sim')
   })
 })
 
@@ -106,6 +106,7 @@ describe('workspace export', () => {
     act(() => FakeWebSocket.instances[0].emit({ type: 'snapshot', connections: [], polls: [] }))
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Export workspace' })))
 
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalled())
     const blob = (createObjectURL.mock.calls[0] as unknown as [Blob])[0]
     expect(JSON.parse(await blob.text())).toEqual(workspace)
     const anchor = click.mock.contexts[0] as HTMLAnchorElement
@@ -151,7 +152,7 @@ describe('CSV register map import', () => {
     pick('address,type\n0,int16\n1,float16\n')
     await screen.findByText(/· 2 rows/)
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Apply' })))
-    const list = screen.getByLabelText('CSV problems')
+    const list = await screen.findByLabelText('CSV problems')
     expect(list).toHaveTextContent('line 3: unknown type float16')
     expect(list).toHaveTextContent('line 5: address 9-10 is outside this window (0-2)')
     expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
@@ -174,7 +175,7 @@ describe('CSV register map import', () => {
     pick('address,type\n0,int16\n5,int16\n')
     await screen.findByText(/· 2 rows/)
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Apply' })))
-    expect(screen.getByRole('status')).toHaveTextContent('addresses 0–5 (6 registers)')
+    expect(await screen.findByRole('status')).toHaveTextContent('addresses 0–5 (6 registers)')
     expect(screen.getByLabelText('CSV problems')).toHaveTextContent('line 3: address 5 is outside')
 
     await act(async () =>

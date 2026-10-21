@@ -198,8 +198,9 @@ describe('ExportersDialog', () => {
         : undefined,
     )
     render(<ExportersDialog onClose={() => {}} />)
+    // The tabs are there before the settings: wait for them to load.
     fireEvent.click(await screen.findByRole('tab', { name: 'MQTT' }))
-    expect(screen.getByText('Not connected')).toBeInTheDocument()
+    expect(await screen.findByText('Not connected')).toBeInTheDocument()
     expect(screen.getByText(/cannot connect to localhost:1883/)).toBeInTheDocument()
     const password = screen.getByLabelText('Password') as HTMLInputElement
     expect(password.type).toBe('password')
@@ -269,7 +270,10 @@ describe('ExportersDialog', () => {
         : undefined,
     )
     render(<ExportersDialog onClose={() => {}} initialTab="mqtt" />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Save' }))
+    // Save is there, disabled, before the settings load: a click then does nothing.
+    const save = await screen.findByRole('button', { name: 'Save' })
+    await waitFor(() => expect(save).toBeEnabled())
+    fireEvent.click(save)
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'topic: unknown placeholder {name} in topic',
     )
