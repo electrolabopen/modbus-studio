@@ -21,6 +21,8 @@ const push = (e: TrafficEntry) =>
   act(() => useStudio.getState().handle({ type: 'traffic', data: e }))
 
 const bodyRows = () => screen.getAllByRole('row').slice(1)
+/** The rows of frames, without the "No frames yet." placeholder. */
+const fetchedRows = () => bodyRows().filter((row) => !row.textContent?.includes('No frames yet.'))
 
 beforeEach(() => useStudio.setState(initial, true))
 afterEach(() => vi.unstubAllGlobals())
@@ -42,7 +44,8 @@ describe('TrafficPanel', () => {
   it('pauses the view and counts what arrives meanwhile', async () => {
     mockServer([frame(1)])
     render(<TrafficPanel onClose={() => {}} />)
-    await waitFor(() => expect(bodyRows()).toHaveLength(1))
+    // One row is also what the panel shows before the saved frames arrive: "No frames yet."
+    await waitFor(() => expect(fetchedRows()).toHaveLength(1))
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
     push(frame(2))
     push(frame(3))
@@ -62,6 +65,6 @@ describe('TrafficPanel', () => {
 
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Clear' })))
     expect(fetchMock).toHaveBeenLastCalledWith('/api/traffic', expect.objectContaining({ method: 'DELETE' }))
-    expect(screen.getByText('No frames yet.')).toBeInTheDocument()
+    expect(await screen.findByText('No frames yet.')).toBeInTheDocument()
   })
 })

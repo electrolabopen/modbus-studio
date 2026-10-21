@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerialPort } from '../api/types'
 import { useStudio } from '../store'
@@ -78,8 +78,9 @@ describe('ConnectionDialog', () => {
       delay_between_requests_ms: 0,
       read_only: false,
     })
+    // The dialog closes once the server has answered.
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
     expect(useStudio.getState().connections.new.config.type).toBe('rtu')
-    expect(onClose).toHaveBeenCalled()
   })
 
   it('does not look for serial ports for TCP connections', () => {
